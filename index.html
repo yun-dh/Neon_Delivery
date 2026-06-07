@@ -1,0 +1,3374 @@
+﻿<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>네온 배달부</title>
+  <style>
+    :root {
+      --bg-top: #07101c;
+      --bg-bottom: #02060b;
+      --panel: rgba(5, 14, 24, 0.84);
+      --panel-strong: rgba(4, 11, 19, 0.94);
+      --line: rgba(127, 231, 240, 0.3);
+      --cyan: #61e5e8;
+      --yellow: #ffd35a;
+      --red: #ff5f6f;
+      --text: #f4fbff;
+      --muted: #8497a8;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      overflow: hidden;
+      background: #02060b;
+      color: var(--text);
+      font-family: "Apple SD Gothic Neo", "Malgun Gothic", Arial, Helvetica, sans-serif;
+    }
+
+    .game-shell {
+      position: relative;
+      width: 100vw;
+      height: 100dvh;
+      min-height: 100vh;
+      overflow: hidden;
+      isolation: isolate;
+    }
+
+    canvas {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      display: block;
+      background: var(--bg-bottom);
+      touch-action: none;
+    }
+
+    .control-bar {
+      position: absolute;
+      z-index: 3;
+      top: max(14px, env(safe-area-inset-top));
+      left: 50%;
+      width: min(580px, calc(100vw - 32px));
+      min-height: 58px;
+      padding: 9px 16px;
+      display: grid;
+      grid-template-columns: 1fr minmax(190px, 1.3fr) 1fr;
+      align-items: center;
+      gap: 12px;
+      transform: translateX(-50%);
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: linear-gradient(180deg, rgba(8, 22, 35, 0.9), rgba(4, 12, 21, 0.78));
+      box-shadow: 0 14px 34px rgba(0, 0, 0, 0.25);
+      backdrop-filter: blur(12px);
+      pointer-events: none;
+    }
+
+    .metric {
+      min-width: 0;
+      display: grid;
+      gap: 2px;
+      text-align: center;
+    }
+
+    .metric span,
+    .boost-hud > span {
+      color: var(--muted);
+      font-size: 10px;
+      font-weight: 800;
+      line-height: 1;
+      letter-spacing: 0;
+      white-space: nowrap;
+    }
+
+    .metric strong {
+      overflow: hidden;
+      color: var(--text);
+      font-size: clamp(16px, 2vw, 22px);
+      line-height: 1.05;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .control-bar[hidden],
+    .boost-hud[hidden],
+    .order-manifest[hidden],
+    .notification[hidden] {
+      display: none;
+    }
+
+    .rating-readout {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 3px;
+    }
+
+    .rating-segments {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+    }
+
+    .rating-star {
+      width: 20px;
+      color: transparent;
+      background: linear-gradient(
+        90deg,
+        var(--yellow) 0 var(--fill),
+        rgba(255, 211, 90, 0.13) var(--fill) 100%
+      );
+      background-clip: text;
+      -webkit-background-clip: text;
+      filter: drop-shadow(0 0 4px rgba(255, 211, 90, 0.28));
+      font-size: 20px;
+      font-style: normal;
+      line-height: 1;
+      -webkit-text-stroke: 1px rgba(255, 211, 90, 0.6);
+    }
+
+    .rating-readout strong {
+      min-width: 34px;
+      color: var(--yellow);
+      font-size: 14px;
+      text-align: right;
+    }
+
+    .order-manifest {
+      position: absolute;
+      z-index: 3;
+      top: max(88px, calc(env(safe-area-inset-top) + 76px));
+      left: max(18px, env(safe-area-inset-left));
+      width: 218px;
+      padding: 13px;
+      border: 1px solid rgba(255, 111, 181, 0.34);
+      border-radius: 6px;
+      background: rgba(5, 14, 24, 0.82);
+      backdrop-filter: blur(10px);
+      pointer-events: none;
+    }
+
+    .order-manifest .manifest-kicker,
+    .order-manifest .manifest-next {
+      color: var(--muted);
+      font-size: 10px;
+      font-weight: 800;
+    }
+
+    .order-manifest .manifest-food {
+      margin: 6px 0 4px;
+      color: #ff9dcc;
+      font-size: 21px;
+      font-weight: 900;
+    }
+
+    .order-manifest .manifest-meta,
+    .order-manifest .manifest-stats {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      color: var(--text);
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .order-manifest .manifest-track {
+      height: 5px;
+      margin: 9px 0;
+      overflow: hidden;
+      border-radius: 2px;
+      background: rgba(255, 255, 255, 0.12);
+    }
+
+    .order-manifest .manifest-track i {
+      display: block;
+      width: 100%;
+      height: 100%;
+      transform-origin: left center;
+      background: #ff6fb5;
+    }
+
+    .notification {
+      position: absolute;
+      z-index: 4;
+      top: max(88px, calc(env(safe-area-inset-top) + 76px));
+      left: 50%;
+      min-width: 210px;
+      padding: 10px 16px;
+      transform: translateX(-50%);
+      border: 1px solid var(--line);
+      border-radius: 5px;
+      background: rgba(5, 14, 24, 0.9);
+      color: var(--text);
+      font-size: 13px;
+      font-weight: 900;
+      text-align: center;
+      pointer-events: none;
+    }
+
+    .notification.success {
+      border-color: rgba(97, 229, 232, 0.6);
+      color: var(--cyan);
+    }
+
+    .notification.delay {
+      border-color: rgba(255, 211, 90, 0.6);
+      color: var(--yellow);
+    }
+
+    .notification.failure {
+      border-color: rgba(255, 95, 111, 0.6);
+      color: #ff9fac;
+    }
+
+    .boost-hud {
+      position: absolute;
+      z-index: 3;
+      left: max(18px, env(safe-area-inset-left));
+      bottom: max(18px, env(safe-area-inset-bottom));
+      min-height: 38px;
+      padding: 10px 12px;
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      border: 1px solid rgba(255, 211, 90, 0.26);
+      border-radius: 5px;
+      background: rgba(5, 14, 24, 0.72);
+      backdrop-filter: blur(10px);
+      pointer-events: none;
+    }
+
+    .boost-hud i {
+      width: 18px;
+      height: 7px;
+      border: 1px solid rgba(255, 211, 90, 0.42);
+      background: rgba(255, 211, 90, 0.08);
+      transition: background-color 120ms ease, box-shadow 120ms ease;
+    }
+
+    .boost-hud i.charged {
+      background: var(--yellow);
+      box-shadow: 0 0 12px rgba(255, 211, 90, 0.55);
+    }
+
+    .sound-toggle {
+      position: absolute;
+      z-index: 5;
+      right: 18px;
+      bottom: 18px;
+      width: 38px;
+      height: 38px;
+      border: 1px solid rgba(97, 229, 232, 0.38);
+      border-radius: 5px;
+      background: rgba(5, 14, 24, 0.82);
+      color: #61e5e8;
+      font-size: 18px;
+      cursor: pointer;
+    }
+
+    @media (max-width: 720px) {
+      canvas {
+        top: 50%;
+        left: 50%;
+        width: 170vw;
+        height: auto;
+        aspect-ratio: 16 / 9;
+        transform: translate(-46.4%, -50%);
+      }
+
+      .control-bar {
+        top: max(8px, env(safe-area-inset-top));
+        width: calc(100vw - 16px);
+        min-height: 54px;
+        padding: 8px;
+        grid-template-columns: 1fr 1.3fr 1fr;
+        gap: 5px;
+      }
+
+      .metric strong {
+        font-size: 15px;
+      }
+
+      .metric span,
+      .boost-hud > span {
+        font-size: 8px;
+      }
+
+      .order-manifest {
+        top: 70px;
+        left: 8px;
+        width: 184px;
+        padding: 10px;
+      }
+
+      .order-manifest .manifest-food {
+        font-size: 17px;
+      }
+
+      .notification {
+        top: 70px;
+        left: auto;
+        right: 8px;
+        min-width: 0;
+        max-width: calc(100vw - 208px);
+        transform: none;
+      }
+
+      .boost-hud {
+        left: 10px;
+        bottom: max(10px, env(safe-area-inset-bottom));
+      }
+
+      .boost-hud i {
+        width: 14px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="game-shell">
+    <canvas id="game" width="1000" height="562" aria-label="네온 배달부 게임 화면"></canvas>
+    <section class="control-bar" id="controlBar" aria-label="배송 관제 정보">
+      <div class="metric">
+        <span>DISTANCE</span>
+        <strong id="distance">0m</strong>
+      </div>
+      <div class="metric">
+        <span>현재 별점</span>
+        <div class="rating-readout">
+          <div class="rating-segments" id="ratingSegments" aria-label="획득 평점"></div>
+          <strong id="ratingValue">0.00</strong>
+        </div>
+      </div>
+      <div class="metric">
+        <span>SPEED</span>
+        <strong id="speed">0 km/h</strong>
+      </div>
+    </section>
+    <aside class="order-manifest" id="orderManifest" aria-label="현재 주문"></aside>
+    <div class="notification" id="notification" role="status" aria-live="polite" hidden></div>
+    <div class="boost-hud" id="boostHud" aria-label="Pulse Boost 잔량"></div>
+    <button class="sound-toggle" id="soundToggle" type="button" aria-label="소리 끄기">♪</button>
+  </main>
+
+  <script>
+    const canvas = document.querySelector("#game");
+    const logicalWidth = 1000;
+    const logicalHeight = 562;
+    const renderScale = Math.min(2, window.devicePixelRatio || 1);
+    canvas.width = Math.round(logicalWidth * renderScale);
+    canvas.height = Math.round(logicalHeight * renderScale);
+    const ctx = canvas.getContext("2d");
+    ctx.setTransform(renderScale, 0, 0, renderScale, 0, 0);
+    ctx.imageSmoothingEnabled = true;
+    const speedEl = document.querySelector("#speed");
+    const distanceEl = document.querySelector("#distance");
+    const ratingSegmentsEl = document.querySelector("#ratingSegments");
+    const ratingValueEl = document.querySelector("#ratingValue");
+    const controlBarEl = document.querySelector("#controlBar");
+    const orderManifestEl = document.querySelector("#orderManifest");
+    const notificationEl = document.querySelector("#notification");
+    const boostHudEl = document.querySelector("#boostHud");
+    const soundToggleEl = document.querySelector("#soundToggle");
+    const previewMode = new URLSearchParams(window.location.search).get("preview");
+    let audioContext = null;
+    let soundMuted = false;
+    let bgmTimer = null;
+    let bgmStep = 0;
+    const bgmBpm = 152;
+    let renderedPulseCharges = -1;
+    let renderedRatingQuarters = -1;
+
+    const W = logicalWidth;
+    const H = logicalHeight;
+    const groundY = 390;
+    const killY = 660;
+    const springDeckY = H - 58;
+    const gravity = 1050;
+    const maxHookDistance = 330;
+    const minRopeLength = 82;
+    const hookElasticDuration = 0.24;
+    const pulseBoostPower = 520;
+    const pulseCooldown = 0.42;
+    const pixelsPerMeter = 22;
+    const playerRadius = 14;
+    const courseDistanceM = 2500;
+    const orderCount = 10;
+    const orderSpacingM = 250;
+    const orderTimeLimit = 15;
+    const orderMissDistanceM = 50;
+    const droneMinGapM = 180;
+    const droneMaxGapM = 260;
+    const droneBodyWidth = 24;
+    const droneBodyHeight = 12;
+    const maxPulseCharges = 5;
+    const ratingQuarterValue = 0.25;
+    const foodMenuPool = [
+      "떡볶이", "치킨", "피자", "초밥", "햄버거",
+      "쌀국수", "족발", "김밥", "라면", "빙수",
+      "짜장면", "파스타", "샌드위치", "카레", "돈까스",
+      "냉면", "보쌈", "타코", "샐러드", "만두",
+      "부대찌개", "우동", "덮밥", "닭갈비",
+    ];
+    const bestRatingKey = "neon-delivery-best-rating";
+    const bestDistanceKey = "neon-delivery-best-distance";
+    const tutorialDoneKey = "neon-delivery-tutorial-done";
+    const tutorialReleasePromptHooks = 2;
+    const tutorialReleasePromptDelay = 0.48;
+    const tutorialBoostPromptDelay = 0.62;
+    const tutorialBoostPromptFallback = 1.35;
+    const tutorialBoostFlightDelay = 0.34;
+    const tutorialAnchors = [
+      { x: 430, y: 150, r: 10 },
+      { x: 700, y: 155, r: 10 },
+      { x: 1040, y: 225, r: 10 },
+    ];
+
+    function ensureAudio() {
+      if (!audioContext) {
+        const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+        if (!AudioContextClass) return null;
+        audioContext = new AudioContextClass();
+      }
+      if (audioContext.state === "suspended") audioContext.resume();
+      return audioContext;
+    }
+
+    function playTone(frequency, duration, type = "sine", volume = 0.08, delay = 0, endFrequency = frequency) {
+      const audio = ensureAudio();
+      if (!audio || soundMuted) return;
+      const start = audio.currentTime + delay;
+      const oscillator = audio.createOscillator();
+      const gain = audio.createGain();
+      oscillator.type = type;
+      oscillator.frequency.setValueAtTime(frequency, start);
+      oscillator.frequency.exponentialRampToValueAtTime(Math.max(30, endFrequency), start + duration);
+      gain.gain.setValueAtTime(0.001, start);
+      gain.gain.exponentialRampToValueAtTime(volume, start + 0.01);
+      gain.gain.exponentialRampToValueAtTime(0.001, start + duration);
+      oscillator.connect(gain).connect(audio.destination);
+      oscillator.start(start);
+      oscillator.stop(start + duration);
+    }
+
+    function playSound(name) {
+      const sounds = {
+        hook: () => playTone(420, 0.12, "square", 0.05, 0, 760),
+        release: () => playTone(520, 0.09, "triangle", 0.04, 0, 260),
+        boost: () => playTone(180, 0.34, "sawtooth", 0.08, 0, 880),
+        boostGate: () => {
+          playTone(620, 0.12, "sine", 0.07, 0, 820);
+          playTone(980, 0.16, "triangle", 0.065, 0.07, 1280);
+        },
+        delivery: () => {
+          playTone(1047, 0.28, "sine", 0.075, 0, 1047);
+          playTone(784, 0.34, "sine", 0.07, 0.18, 784);
+        },
+        spring: () => playTone(190, 0.3, "triangle", 0.08, 0, 720),
+        collision: () => playTone(110, 0.28, "sawtooth", 0.1, 0, 45),
+        failure: () => {
+          playTone(392, 0.24, "triangle", 0.075, 0, 247);
+          playTone(220, 0.42, "sawtooth", 0.065, 0.18, 82);
+        },
+        doorOpen: () => playTone(180, 0.35, "triangle", 0.05, 0, 360),
+        doorClose: () => playTone(340, 0.3, "triangle", 0.05, 0, 130),
+        complete: () => [0, 0.1, 0.2, 0.32].forEach((delay, index) => playTone([440, 554, 659, 880][index], 0.22, "sine", 0.06, delay)),
+      };
+      sounds[name]?.();
+    }
+
+    function scheduleBgmStep() {
+      if (soundMuted || !["ready", "playing", "tutorialPlaying", "finishing"].includes(state.mode)) return;
+      const bass = [110, 110, 130.81, 98, 110, 146.83, 130.81, 98];
+      const lead = [440, 523.25, 659.25, 783.99, 440, 587.33, 659.25, 880];
+      playTone(bass[bgmStep % bass.length], 0.18, "square", 0.018);
+      if (bgmStep % 2 === 0) {
+        playTone(lead[bgmStep % lead.length], 0.12, "triangle", 0.014, 0.02);
+      }
+      bgmStep = (bgmStep + 1) % 16;
+    }
+
+    function startBgm() {
+      if (bgmTimer) return;
+      const stepMs = 60000 / bgmBpm / 2;
+      scheduleBgmStep();
+      bgmTimer = window.setInterval(scheduleBgmStep, stepMs);
+    }
+    const tutorialSteps = [
+      {
+        id: "briefing",
+        label: "Tutorial 1/7",
+        message: "화면에 대한 설명입니다.",
+        hint: "클릭으로 화면 설명 닫기",
+        retry: "",
+      },
+      {
+        id: "jump",
+        label: "Tutorial 2/7",
+        message: "출발 준비가 되면 클릭으로 점프하세요.",
+        hint: "클릭으로 점프",
+        retry: "",
+      },
+      {
+        id: "hook",
+        label: "Tutorial 3/7",
+        message: "노란 홀드가 지금 연결될 대상입니다. 클릭을 꾹 눌러 와이어를 연결하고, 오른쪽으로 튕겨 나갈 때 손을 떼세요.",
+        hint: "노란 홀드에 클릭을 꾹 누르기",
+        retry: "",
+      },
+      {
+        id: "assist",
+        label: "Tutorial 4/7",
+        message: "적절한 타이밍에 맞게 다음 홀드에 와이어를 연결시키세요.",
+        hint: "클릭으로 와이어 연결",
+        retry: "",
+      },
+      {
+        id: "boost",
+        label: "Tutorial 5/7",
+        message: "부스터 사용법입니다. 진행 방향으로 멀리 날아갈 타이밍에 와이어가 연결된 상태에서 스페이스바를 누르고, 클릭을 떼어 제한시간내에 배달하세요.",
+        hint: "스페이스바로 부스터 사용",
+        retry: "",
+      },
+      {
+        id: "drone",
+        label: "Tutorial 6/7",
+        message: "아차! 실제 배달에서는 750m 이후 드론이 간헐적으로 나옵니다. 노란 드론은 직진, 빨간 드론은 위아래로 움직이니 피해서 안전하게 배달하세요.",
+        hint: "클릭으로 남은 배달 진행",
+        retry: "",
+      },
+      {
+        id: "delivery",
+        label: "Tutorial 7/7",
+        message: "분홍 배달 링이 마지막 배달 지점입니다. 링을 통과해 배달을 완료하세요.",
+        hint: "클릭으로 배달 링 통과",
+        retry: "",
+      },
+    ];
+    const uiBounds = {
+      tutorialStart: { x: W - 264, y: H - 126, w: 220, h: 48 },
+      tutorialSkip: { x: W - 264, y: H - 68, w: 220, h: 32 },
+      realStart: { x: W / 2 - 82, y: H / 2 + 74, w: 164, h: 42 },
+      deliveryStart: { x: W - 264, y: H - 126, w: 220, h: 48 },
+      tutorialAgain: { x: W - 264, y: H - 68, w: 220, h: 32 },
+      resultRestart: { x: W / 2 - 86, y: 446, w: 172, h: 40 },
+    };
+
+    function readStorage(key) {
+      try {
+        return localStorage.getItem(key);
+      } catch {
+        return null;
+      }
+    }
+
+    function writeStorage(key, value) {
+      try {
+        localStorage.setItem(key, value);
+      } catch {
+        // Storage failures should not block gameplay.
+      }
+    }
+
+    function normalizeBestDistance(value) {
+      const distance = Number(value);
+      if (!Number.isFinite(distance) || distance < 0) return 0;
+      return Math.min(courseDistanceM, distance);
+    }
+
+    function parseStoredBestDistance(value) {
+      if (value === null) return null;
+      const distance = Number(value);
+      if (!Number.isFinite(distance) || distance < 0) return null;
+      return Math.min(courseDistanceM, distance);
+    }
+
+    function readBestDistance() {
+      const currentDistance = parseStoredBestDistance(readStorage(bestDistanceKey));
+      if (currentDistance !== null) return currentDistance;
+      return parseStoredBestDistance(
+        readStorage("neon-delivery-runner-best-distance")
+      ) ?? 0;
+    }
+
+    function normalizeBestRating(value) {
+      const rating = Number(value);
+      if (!Number.isFinite(rating) || rating < 0) return 0;
+      const clampedRating = Math.min(5, rating);
+      return Math.round(clampedRating / ratingQuarterValue) * ratingQuarterValue;
+    }
+
+    function shuffle(items, random = Math.random) {
+      const result = [...items];
+      for (let i = result.length - 1; i > 0; i -= 1) {
+        const j = Math.floor(random() * (i + 1));
+        [result[i], result[j]] = [result[j], result[i]];
+      }
+      return result;
+    }
+
+    function deliveryRingY(index, random = Math.random) {
+      if (index === orderCount - 1) return 315;
+      return 225 + Math.round(random() * 105);
+    }
+
+    function createOrders(random = Math.random) {
+      return shuffle(foodMenuPool, random).slice(0, orderCount).map((food, index) => {
+        const distanceM = (index + 1) * orderSpacingM;
+        return {
+          id: index + 1,
+          food,
+          distanceM,
+          x: metersToWorldX(distanceM),
+          y: deliveryRingY(index, random),
+          rx: 60,
+          ry: 88,
+          status: "pending",
+          lateNotified: false,
+        };
+      });
+    }
+
+    function activeOrder() {
+      return state.orders[state.activeOrderIndex] ?? null;
+    }
+
+    function currentRating() {
+      return Math.min(5, state.ratingQuarters * ratingQuarterValue);
+    }
+
+    function showNotification(type, message, duration = 2.2) {
+      state.notification = { type, message, time: duration };
+      return state.notification;
+    }
+
+    function activateNextOrder() {
+      const nextIndex = state.orders.findIndex((order, index) => (
+        index > state.activeOrderIndex && order.status === "pending"
+      ));
+      if (nextIndex < 0) {
+        beginFinishSequence();
+        return null;
+      }
+      state.activeOrderIndex = nextIndex;
+      state.orders[nextIndex].status = "active";
+      state.orders[nextIndex].lateNotified = false;
+      state.orderTimeLeft = orderTimeLimit;
+      return state.orders[nextIndex];
+    }
+
+    function resolveActiveOrder(result) {
+      const order = activeOrder();
+      if (!order || (order.status !== "active" && order.status !== "late")) return null;
+      order.status = result;
+
+      if (result === "onTime") {
+        state.ratingQuarters = Math.min(20, state.ratingQuarters + 2);
+        state.onTimeCount += 1;
+        state.pulseCharges = Math.min(maxPulseCharges, state.pulseCharges + 1);
+        showNotification("success", `${order.food} 정시 배달  +0.50`);
+        playSound("delivery");
+      } else if (result === "lateSuccess") {
+        state.ratingQuarters = Math.min(20, state.ratingQuarters + 1);
+        state.lateCount += 1;
+        state.pulseCharges = Math.min(maxPulseCharges, state.pulseCharges + 1);
+        showNotification("delay", `${order.food} 지연 배달  +0.25`);
+        playSound("delivery");
+      } else {
+        state.missedCount += 1;
+        showNotification("failure", `${order.food} 배달 실패`);
+      }
+
+      if (state.activeOrderIndex >= state.orders.length - 1) {
+        beginFinishSequence();
+      } else {
+        activateNextOrder();
+      }
+      return order;
+    }
+
+    function updateOrders(dt) {
+      const order = activeOrder();
+      if (!order || (order.status !== "active" && order.status !== "late")) return;
+
+      if (state.mode === "playing") {
+        state.orderTimeLeft = Math.max(0, state.orderTimeLeft - dt);
+        if (state.orderTimeLeft === 0 && !order.lateNotified) {
+          order.status = "late";
+          order.lateNotified = true;
+          showNotification("delay", `${order.food} 배달 지연`);
+        }
+      }
+
+      const p = state.player;
+      const nx = (p.x - order.x) / order.rx;
+      const ny = (p.y - order.y) / order.ry;
+      if (nx * nx + ny * ny < 1) {
+        if (state.mode === "tutorialPlaying") {
+          order.status = "onTime";
+          state.pulseCharges = Math.min(maxPulseCharges, state.pulseCharges + 1);
+          showNotification("success", "연습 배달 성공  +1 Boost");
+          burst(order.x, order.y, "#ff6fb5", 22);
+          advanceTutorialStep();
+        } else {
+          resolveActiveOrder(order.status === "late" ? "lateSuccess" : "onTime");
+          burst(order.x, order.y, "#ff6fb5", 22);
+        }
+        return;
+      }
+
+      if (state.mode === "playing" && p.x > order.x + orderMissDistanceM * pixelsPerMeter) {
+        resolveActiveOrder("missed");
+      }
+    }
+
+    function findSafeDroneSpawn(candidateX, candidateY, minX, maxX) {
+      const yOptions = [candidateY, 175, 365, 220, 320];
+      const startX = Math.max(minX, Math.min(maxX, candidateX));
+      const range = Math.max(0, maxX - minX);
+
+      for (let offset = 0; offset <= range + 130; offset += 130) {
+        const xOptions = offset === 0
+          ? [startX]
+          : [startX + offset, startX - offset];
+        for (const x of xOptions) {
+          if (x < minX || x > maxX) continue;
+          for (const y of yOptions) {
+            const nearGate = state.gates.some((gate) => (
+              Math.abs(gate.x - x) < 100 && Math.abs(gate.y - y) < 100
+            ));
+            const nearOrder = state.orders.some((order) => (
+              Math.abs(order.x - x) < 120 && Math.abs(order.y - y) < 110
+            ));
+            if (!nearGate && !nearOrder) return { x, y };
+          }
+        }
+      }
+      return null;
+    }
+
+    function persistRunRecords() {
+      const distance = normalizeBestDistance(currentDistance());
+      const rating = currentRating();
+      if (distance > state.bestDistance) {
+        state.bestDistance = distance;
+        writeStorage(bestDistanceKey, String(distance));
+      }
+      if (rating > state.bestRating) {
+        state.bestRating = rating;
+        writeStorage(bestRatingKey, String(rating));
+      }
+    }
+
+    function beginFinishSequence() {
+      if (state.mode === "finishing" || state.mode === "gameover") return;
+      state.mode = "finishing";
+      state.runCompleted = true;
+      state.hook = null;
+      state.drones = [];
+      const homeX = Math.max(state.player.x + 250, metersToWorldX(courseDistanceM) + 250);
+      state.finishState = {
+        phase: "landing",
+        timer: 0,
+        homeX,
+        doorProgress: 0,
+        enterProgress: 0,
+        characterEntered: false,
+      };
+      state.status = "귀환 중";
+    }
+
+    function updateFinishing(dt) {
+      const finish = state.finishState;
+      if (!finish) return;
+      const p = state.player;
+      finish.timer += dt;
+
+      if (finish.phase === "landing") {
+        p.vx += (180 - p.vx) * Math.min(1, dt * 3);
+        p.vy += gravity * dt;
+        p.x += p.vx * dt;
+        p.y = Math.min(groundY - p.r, p.y + p.vy * dt);
+        if (p.y >= groundY - p.r || finish.timer > 1.5) {
+          p.y = groundY - p.r;
+          p.vy = 0;
+          finish.phase = "opening";
+          finish.timer = 0;
+          state.status = "도착";
+          playSound("doorOpen");
+        }
+      } else if (finish.phase === "opening") {
+        finish.doorProgress = Math.min(1, finish.doorProgress + dt * 2.5);
+        if (finish.doorProgress === 1) {
+          finish.phase = "approach";
+          finish.timer = 0;
+          state.status = "입장";
+        }
+      } else if (finish.phase === "approach") {
+        const entranceX = finish.homeX - 26;
+        p.x += Math.max(70, (entranceX - p.x) * 2.8) * dt;
+        if (p.x >= entranceX || finish.timer > 1.6) {
+          p.x = entranceX;
+          finish.phase = "entering";
+          finish.timer = 0;
+        }
+      } else if (finish.phase === "entering") {
+        finish.enterProgress = Math.min(1, finish.enterProgress + dt * 1.6);
+        const entranceY = groundY - p.r - 14;
+        p.x += (finish.homeX - p.x) * Math.min(1, dt * 5);
+        p.y += (entranceY - p.y) * Math.min(1, dt * 6);
+        if (finish.enterProgress === 1) {
+          p.x = finish.homeX;
+          finish.phase = "closing";
+          finish.timer = 0;
+          state.status = "문 닫는 중";
+          playSound("doorClose");
+        }
+      } else if (finish.phase === "closing") {
+        finish.doorProgress = Math.max(0, finish.doorProgress - dt * 2.5);
+        if (finish.phase === "closing" && finish.doorProgress === 0) {
+          finish.characterEntered = true;
+          persistRunRecords();
+          state.status = "배달 완료";
+          state.mode = "gameover";
+          playSound("complete");
+        }
+      }
+
+      state.maxX = Math.min(metersToWorldX(courseDistanceM), Math.max(state.maxX, p.x));
+      state.cameraX = Math.max(state.cameraX, p.x - W * 0.55);
+    }
+
+    function hasCompletedTutorial() {
+      return readStorage(tutorialDoneKey) === "true";
+    }
+
+    function initialMode() {
+      return hasCompletedTutorial() ? "waiting" : "tutorialIntro";
+    }
+
+    const state = {
+      mode: "waiting",
+      cameraX: 0,
+      maxX: 170,
+      speedKmh: 0,
+      maxSpeedKmh: 0,
+      speedSumKmh: 0,
+      speedSamples: 0,
+      combo: 0,
+      pulseCharges: 2,
+      pulseCooldownLeft: 0,
+      status: "Hold to start",
+      screenFlash: 0,
+      shake: 0,
+      hookHoldTime: 0,
+      tutorialStepIndex: 0,
+      tutorialStepStartX: 170,
+      tutorialReleased: false,
+      tutorialJumpStarted: false,
+      tutorialPaused: false,
+      tutorialHookCount: 0,
+      tutorialReleasePromptCount: 0,
+      tutorialBoostUsed: false,
+      tutorialBoostFlightTime: 0,
+      tutorialSpringUsed: false,
+      tutorialStepElapsed: 0,
+      tutorialFeedback: "",
+      tutorialFeedbackTimer: 0,
+      orders: [],
+      activeOrderIndex: 0,
+      orderTimeLeft: orderTimeLimit,
+      ratingQuarters: 0,
+      onTimeCount: 0,
+      lateCount: 0,
+      missedCount: 0,
+      bestRating: normalizeBestRating(readStorage(bestRatingKey)),
+      bestDistance: readBestDistance(),
+      get best() {
+        return this.bestDistance;
+      },
+      set best(value) {
+        this.bestDistance = normalizeBestDistance(value);
+      },
+      finishState: null,
+      runCompleted: false,
+      notification: null,
+      lastPointerWorld: null,
+      player: null,
+      hook: null,
+      anchors: [],
+      gates: [],
+      drones: [],
+      springs: [],
+      particles: [],
+      effects: [],
+      nextAnchorX: 430,
+      nextGateX: 700,
+      nextDroneX: metersToWorldX(750),
+      nextSpringX: 980,
+    };
+
+    function isTutorialMode() {
+      return state.mode === "tutorialIntro" || state.mode === "tutorialPlaying" || state.mode === "tutorialComplete";
+    }
+
+    function reset(mode = initialMode()) {
+      state.mode = mode;
+      state.cameraX = 0;
+      state.maxX = 170;
+      state.speedKmh = 0;
+      state.maxSpeedKmh = 0;
+      state.speedSumKmh = 0;
+      state.speedSamples = 0;
+      state.combo = 0;
+      state.pulseCharges = 2;
+      state.pulseCooldownLeft = 0;
+      state.status = "Hold to start";
+      state.screenFlash = 0;
+      state.shake = 0;
+      state.hookHoldTime = 0;
+      state.tutorialStepIndex = 0;
+      state.tutorialStepStartX = 170;
+      state.tutorialReleased = false;
+      state.tutorialJumpStarted = false;
+      state.tutorialPaused = false;
+      state.tutorialHookCount = 0;
+      state.tutorialReleasePromptCount = 0;
+      state.tutorialBoostUsed = false;
+      state.tutorialBoostFlightTime = 0;
+      state.tutorialSpringUsed = false;
+      state.tutorialStepElapsed = 0;
+      state.tutorialFeedback = "";
+      state.tutorialFeedbackTimer = 0;
+      state.orders = createOrders();
+      state.activeOrderIndex = 0;
+      state.orderTimeLeft = orderTimeLimit;
+      state.ratingQuarters = 0;
+      state.onTimeCount = 0;
+      state.lateCount = 0;
+      state.missedCount = 0;
+      state.finishState = null;
+      state.runCompleted = false;
+      state.notification = null;
+      state.lastPointerWorld = null;
+      if (state.orders[0]) state.orders[0].status = "active";
+      state.hook = null;
+      state.anchors = [];
+      state.gates = [];
+      state.drones = [];
+      state.springs = [];
+      state.particles = [];
+      state.effects = [];
+      state.nextAnchorX = 430;
+      state.nextGateX = 700;
+      state.nextDroneX = metersToWorldX(750);
+      state.nextSpringX = 980;
+      state.player = {
+        x: 170,
+        y: groundY - playerRadius,
+        vx: 0,
+        vy: 0,
+        r: playerRadius,
+        leftStartPad: false,
+      };
+      if (state.mode === "tutorialPlaying") {
+        setupTutorialStep(0);
+      } else {
+        generateWorld(1800);
+      }
+      updateHud();
+    }
+
+    function generateWorld(untilX) {
+      while (state.nextAnchorX < untilX) {
+        state.anchors.push({
+          x: state.nextAnchorX,
+          y: rand(86, 190),
+          r: 10,
+        });
+        state.nextAnchorX += rand(290, 420);
+      }
+
+      while (state.nextGateX < untilX) {
+        const y = rand(235, 345);
+        const overlapsOrder = state.orders.some((order) => (
+          Math.abs(order.x - state.nextGateX) < 130 && Math.abs(order.y - y) < 120
+        ));
+        if (!overlapsOrder) {
+          state.gates.push({
+            x: state.nextGateX,
+            y,
+            rx: 38,
+            ry: 62,
+            passed: false,
+            missed: false,
+          });
+        }
+        state.nextGateX += rand(520, 760);
+      }
+
+      while (state.nextDroneX < untilX) {
+        const candidateX = state.nextDroneX;
+        const candidateDistanceM = worldXToMeters(candidateX);
+        if (candidateDistanceM < 750) {
+          state.nextDroneX = metersToWorldX(750);
+          continue;
+        }
+        if (candidateDistanceM > courseDistanceM) break;
+
+        const previousSpawnX = state.drones.at(-1)?.spawnX;
+        const minX = previousSpawnX === undefined
+          ? metersToWorldX(750)
+          : previousSpawnX + droneMinGapM * pixelsPerMeter;
+        const maxX = Math.min(
+          metersToWorldX(courseDistanceM),
+          untilX - 1,
+          previousSpawnX === undefined
+            ? candidateX + droneMaxGapM * pixelsPerMeter
+            : previousSpawnX + droneMaxGapM * pixelsPerMeter,
+        );
+        if (maxX < minX) break;
+
+        const spawn = findSafeDroneSpawn(candidateX, rand(175, 365), minX, maxX);
+        if (!spawn) {
+          state.nextDroneX = minX;
+          break;
+        }
+
+        const spawnDistanceM = worldXToMeters(spawn.x);
+        let type = "yellow";
+        if (spawnDistanceM >= 2000) type = Math.random() < 0.5 ? "red" : "yellow";
+        else if (spawnDistanceM >= 1500) type = "red";
+
+        state.drones.push({
+          x: spawn.x,
+          spawnX: spawn.x,
+          y: spawn.y,
+          baseY: spawn.y,
+          w: droneBodyWidth,
+          h: droneBodyHeight,
+          type,
+          speed: type === "red" ? rand(170, 230) : rand(120, 170),
+          phase: rand(0, Math.PI * 2),
+          amp: type === "red" ? rand(28, 54) : 0,
+        });
+        state.nextDroneX = spawn.x + rand(droneMinGapM, droneMaxGapM) * pixelsPerMeter;
+      }
+
+      while (state.nextSpringX < untilX) {
+        if (worldXToMeters(state.nextSpringX) > 90) {
+          const nearGate = state.gates.some((gate) => Math.abs(gate.x - state.nextSpringX) < 120);
+          const nearOrder = state.orders.some((order) => Math.abs(order.x - state.nextSpringX) < 140);
+          const nearDrone = state.drones.some((drone) => Math.abs(drone.x - state.nextSpringX) < 120);
+          if (!nearGate && !nearOrder && !nearDrone) {
+            state.springs.push({
+              x: state.nextSpringX,
+              y: springDeckY,
+              w: 58,
+              h: 14,
+              used: false,
+            });
+          }
+        }
+        state.nextSpringX += rand(1250, 1850);
+      }
+    }
+
+    function resetPlayerToStart() {
+      state.cameraX = 0;
+      state.maxX = 170;
+      state.speedKmh = 0;
+      state.maxSpeedKmh = 0;
+      state.speedSumKmh = 0;
+      state.speedSamples = 0;
+      state.combo = 0;
+      state.pulseCharges = 2;
+      state.pulseCooldownLeft = 0;
+      state.hookHoldTime = 0;
+      state.hook = null;
+      state.player = {
+        x: 170,
+        y: groundY - playerRadius,
+        vx: 0,
+        vy: 0,
+        r: playerRadius,
+        leftStartPad: false,
+      };
+    }
+
+    function setTutorialStep(index, feedback = "") {
+      state.tutorialStepIndex = index;
+      state.tutorialPaused = true;
+      state.tutorialStepElapsed = 0;
+      state.tutorialFeedback = feedback;
+      state.tutorialFeedbackTimer = feedback ? 1.2 : 0;
+      state.status = tutorialSteps[index].label;
+
+      if (tutorialSteps[index].id === "assist") {
+        ensureTutorialOrderManifest();
+        placeTutorialSpring();
+      }
+
+      if (tutorialSteps[index].id === "briefing") {
+        placeTutorialBriefingScene();
+      }
+
+      if (tutorialSteps[index].id === "jump") {
+        ensureTutorialOrderManifest();
+        state.anchors = [];
+      }
+
+      if (tutorialSteps[index].id === "hook") {
+        ensureTutorialOrderManifest();
+        placeTutorialHookAnchors();
+      }
+
+      if (tutorialSteps[index].id === "boost") {
+        ensureTutorialOrderManifest();
+        placeTutorialProgressAnchors();
+      }
+
+      if (tutorialSteps[index].id === "drone") {
+        placeTutorialDroneDelivery();
+      }
+
+      if (tutorialSteps[index].id === "delivery") {
+        ensureTutorialFinalDelivery();
+        placeTutorialProgressAnchors();
+      }
+    }
+
+    function setupTutorialStep(index, feedback = "") {
+      state.mode = "tutorialPlaying";
+      state.tutorialReleased = false;
+      state.tutorialJumpStarted = false;
+      state.tutorialPaused = false;
+      state.tutorialHookCount = 0;
+      state.tutorialReleasePromptCount = 0;
+      state.tutorialBoostUsed = false;
+      state.tutorialBoostFlightTime = 0;
+      state.tutorialSpringUsed = false;
+      state.tutorialStepElapsed = 0;
+      resetPlayerToStart();
+      state.anchors = tutorialAnchors.map((anchor) => ({ ...anchor }));
+      state.orders = [];
+      state.activeOrderIndex = 0;
+      state.orderTimeLeft = orderTimeLimit;
+      state.gates = [];
+      state.drones = [];
+      state.springs = [];
+      state.particles = [];
+      state.effects = [];
+      state.nextAnchorX = 1000;
+      state.nextGateX = 1600;
+      state.nextDroneX = metersToWorldX(750);
+      state.nextSpringX = 2200;
+      state.tutorialStepStartX = state.player.x;
+      setTutorialStep(index, feedback);
+      updateHud();
+    }
+
+    function advanceTutorialStep() {
+      const nextIndex = state.tutorialStepIndex + 1;
+      if (nextIndex >= tutorialSteps.length) {
+        state.mode = "tutorialComplete";
+        state.status = "Tutorial Complete";
+        state.tutorialPaused = false;
+        state.hook = null;
+        state.hookHoldTime = 0;
+        return;
+      }
+      setTutorialStep(nextIndex);
+    }
+
+    function retryTutorialStep() {
+      setupTutorialStep(1);
+    }
+
+    function completeTutorial() {
+      writeStorage(tutorialDoneKey, "true");
+      reset("waiting");
+    }
+
+    function skipTutorial() {
+      writeStorage(tutorialDoneKey, "true");
+      reset("waiting");
+    }
+
+    function startTutorial() {
+      setupTutorialStep(0);
+    }
+
+    function currentTutorialStep() {
+      return state.mode === "tutorialPlaying" ? tutorialSteps[state.tutorialStepIndex] : null;
+    }
+
+    function resumeTutorialStep() {
+      state.tutorialPaused = false;
+      state.tutorialStepElapsed = 0;
+    }
+
+    function placeTutorialBriefingScene() {
+      state.player.x = 170;
+      state.player.y = groundY - playerRadius;
+      state.player.vx = 0;
+      state.player.vy = 0;
+      state.cameraX = 0;
+      state.maxX = 170;
+      state.speedKmh = 0;
+      state.ratingQuarters = 0;
+      state.pulseCharges = 2;
+      state.anchors = [];
+      state.orders = [{
+        id: 1,
+        food: "떡볶이",
+        distanceM: 150,
+        x: metersToWorldX(150),
+        y: 270,
+        rx: 64,
+        ry: 92,
+        status: "briefing",
+        lateNotified: false,
+        tutorial: true,
+      }];
+      state.activeOrderIndex = 0;
+      state.orderTimeLeft = orderTimeLimit;
+      state.gates = [];
+      state.springs = [];
+      state.drones = [];
+      state.lastPointerWorld = { x: 420, y: 148 };
+    }
+
+    function ensureTutorialOrderManifest() {
+      state.orders = [{
+        id: 1,
+        food: "떡볶이",
+        distanceM: 150,
+        x: metersToWorldX(150),
+        y: 270,
+        rx: 64,
+        ry: 92,
+        status: "briefing",
+        lateNotified: false,
+        tutorial: true,
+      }];
+      state.activeOrderIndex = 0;
+      state.orderTimeLeft = orderTimeLimit;
+    }
+
+    function ensureTutorialFinalDelivery() {
+      const order = activeOrder();
+      if (order) {
+        order.status = "active";
+        order.distanceM = 150;
+        order.x = metersToWorldX(150);
+        order.rx = 64;
+        order.ry = 92;
+        order.lateNotified = false;
+      } else {
+        ensureTutorialOrderManifest();
+        activeOrder().status = "active";
+      }
+      state.orderTimeLeft = Math.max(state.orderTimeLeft, 4);
+    }
+
+    function isTutorialDeliveryRingFullyVisible() {
+      const order = activeOrder();
+      if (!order) return false;
+      const sx = worldX(order.x);
+      return sx - order.rx > 28 && sx + order.rx < W - 28;
+    }
+
+    function placeTutorialHookAnchors() {
+      state.anchors = tutorialAnchors.map((anchor) => ({ ...anchor }));
+      state.lastPointerWorld = { x: tutorialAnchors[0].x, y: tutorialAnchors[0].y };
+    }
+
+    function placeTutorialProgressAnchors() {
+      const p = state.player;
+      const ringX = metersToWorldX(150);
+      const baseX = Math.max(p.x + 210, state.hook?.anchor?.x + 230 || p.x + 210);
+      const maxX = Math.max(baseX + 120, ringX - 70);
+      const anchors = [
+        { x: Math.min(baseX, maxX), y: Math.max(132, Math.min(230, p.y - 118)), r: 10 },
+        { x: Math.min(baseX + 255, ringX - 34), y: Math.max(145, Math.min(270, p.y - 72)), r: 10 },
+        { x: Math.min(baseX + 500, ringX + 160), y: Math.max(140, Math.min(285, p.y - 98)), r: 10 },
+      ].filter((anchor, index, list) => anchor.x > p.x + 58 && list.findIndex((item) => Math.abs(item.x - anchor.x) < 34) === index);
+      state.anchors = anchors.length ? anchors : [{ x: p.x + 220, y: Math.max(150, p.y - 100), r: 10 }];
+      state.lastPointerWorld = { x: state.anchors[0].x, y: state.anchors[0].y };
+    }
+
+    function placeTutorialSpring() {
+      const p = state.player;
+      const springY = springDeckY;
+      const fallDistance = Math.max(18, springY - (p.y + p.r));
+      const fallTime = Math.max(0.12, Math.min(1.5, (-p.vy + Math.sqrt(Math.max(0, p.vy * p.vy + 2 * gravity * fallDistance))) / gravity));
+      const springX = Math.max(p.x + 130, p.x + p.vx * fallTime);
+      state.springs = [{
+        x: springX,
+        y: springY,
+        w: 76,
+        h: 14,
+        used: false,
+        tutorial: true,
+      }];
+    }
+
+    function placeTutorialDroneDelivery() {
+      const p = state.player;
+      const ringX = metersToWorldX(150);
+      const ringY = Math.min(330, Math.max(205, p.y + 42));
+      state.orders = [{
+        id: 1,
+        food: "떡볶이",
+        distanceM: 150,
+        x: ringX,
+        y: ringY,
+        rx: 64,
+        ry: 92,
+        status: "active",
+        lateNotified: false,
+        tutorial: true,
+      }];
+      state.activeOrderIndex = 0;
+      state.orderTimeLeft = orderTimeLimit;
+      state.anchors = [];
+      state.springs = [];
+      state.drones = [{
+        x: Math.min(ringX - 125, p.x + 190),
+        y: Math.max(172, Math.min(300, p.y - 16)),
+        baseY: Math.max(172, Math.min(300, p.y - 16)),
+        w: droneBodyWidth,
+        h: droneBodyHeight,
+        type: "yellow",
+        speed: 135,
+        phase: 0,
+        amp: 0,
+        tutorial: true,
+      }];
+      placeTutorialProgressAnchors();
+      p.vx = Math.max(p.vx, 300);
+    }
+
+    function handleTutorialHookConnected(anchor) {
+      if (state.mode !== "tutorialPlaying") return;
+      anchor.tutorialUsed = true;
+      state.tutorialHookCount += 1;
+      state.tutorialStepStartX = state.player.x;
+    }
+
+    function isTutorialReleaseMoment() {
+      const p = state.player;
+      const anchor = state.hook?.anchor;
+      if (!anchor) return false;
+      const attach = playerWirePoint(p);
+      return state.hookHoldTime >= tutorialReleasePromptDelay && attach.x > anchor.x + 44 && p.vx > 90;
+    }
+
+    function isTutorialBoostMoment() {
+      const p = state.player;
+      const anchor = state.hook?.anchor;
+      if (!anchor) return false;
+      const attach = playerWirePoint(p);
+      const rightArcRatio = (attach.x - anchor.x) / state.hook.length;
+      const risingOnRight = rightArcRatio >= 0.32 && p.vx > 60 && p.vy < -30;
+      return (state.hookHoldTime >= tutorialBoostPromptDelay && risingOnRight) ||
+        state.hookHoldTime >= tutorialBoostPromptFallback;
+    }
+
+    function isTutorialReleaseJumpMoment(anchor = state.hook?.anchor) {
+      const p = state.player;
+      if (!anchor) return false;
+      const attach = playerWirePoint(p);
+      return state.hookHoldTime >= 0.28 &&
+        attach.x > anchor.x + 34 &&
+        p.vx > 105 &&
+        p.vy < 180;
+    }
+
+    function pointInRect(point, rect) {
+      return point.x >= rect.x && point.x <= rect.x + rect.w && point.y >= rect.y && point.y <= rect.y + rect.h;
+    }
+
+    function startJump() {
+      state.player.vx = 210;
+      state.player.vy = -360;
+      state.player.leftStartPad = true;
+      state.status = "Jump";
+    }
+
+    function quickRestart() {
+      reset("playing");
+      startJump();
+    }
+
+    function rand(min, max) {
+      return min + Math.random() * (max - min);
+    }
+
+    function pointerWorld(event) {
+      const p = pointerCanvas(event);
+      return {
+        x: state.cameraX + p.x,
+        y: p.y,
+      };
+    }
+
+    function rememberPointer(event) {
+      state.lastPointerWorld = pointerWorld(event);
+      return state.lastPointerWorld;
+    }
+
+    function playerWirePoint(player = state.player) {
+      return {
+        x: player.x + 21,
+        y: player.y + 1,
+      };
+    }
+
+    function fallbackHookPointer() {
+      const attach = playerWirePoint();
+      return {
+        x: attach.x + 210,
+        y: attach.y - 135,
+      };
+    }
+
+    function hookAnchorCandidate(anchor, pointer = state.lastPointerWorld ?? fallbackHookPointer()) {
+      if (!state.player) return { anchor, eligible: false, score: Infinity };
+      if (state.mode === "tutorialPlaying" && anchor.tutorialUsed) {
+        return { anchor, eligible: false, score: Infinity };
+      }
+
+      const attach = playerWirePoint();
+      const dx = anchor.x - attach.x;
+      const dy = anchor.y - attach.y;
+      const dist = Math.hypot(dx, dy);
+      const isClearlyAhead = dx > -35 && dx < 340;
+      const isHighEnough = anchor.y < attach.y - 8;
+      const isUsefulDistance = dist > 30 && dist < maxHookDistance;
+      const eligible = isClearlyAhead && isHighEnough && isUsefulDistance;
+      if (!eligible) return { anchor, eligible, score: Infinity };
+
+      const pointerDistance = Math.hypot(anchor.x - pointer.x, anchor.y - pointer.y);
+      const pointerBias = pointerDistance * 1.15;
+      const forwardBias = Math.abs(dx - 210) * 0.28;
+      const heightBias = Math.abs(dy + 135) * 0.12;
+      const score = pointerBias + dist * 0.45 + forwardBias + heightBias;
+      return { anchor, eligible, score };
+    }
+
+    function findBestHookAnchor(pointer = state.lastPointerWorld ?? fallbackHookPointer()) {
+      let best = null;
+      for (const anchor of state.anchors) {
+        const candidate = hookAnchorCandidate(anchor, pointer);
+        if (!candidate.eligible) continue;
+        if (!best || candidate.score < best.score) best = candidate;
+      }
+      return best?.anchor ?? null;
+    }
+
+    function pointerCanvas(event) {
+      const rect = canvas.getBoundingClientRect();
+      return {
+        x: (event.clientX - rect.left) * (W / rect.width),
+        y: (event.clientY - rect.top) * (H / rect.height),
+      };
+    }
+
+    function startOrHook(event) {
+      ensureAudio();
+      startBgm();
+      const canvasPoint = pointerCanvas(event);
+      const pointer = rememberPointer(event);
+
+      if (state.mode === "tutorialIntro") {
+        if (pointInRect(canvasPoint, uiBounds.tutorialStart)) {
+          startTutorial();
+        } else if (pointInRect(canvasPoint, uiBounds.tutorialSkip)) {
+          skipTutorial();
+        }
+        return;
+      }
+
+      if (state.mode === "tutorialComplete") {
+        if (pointInRect(canvasPoint, uiBounds.realStart)) {
+          completeTutorial();
+        }
+        return;
+      }
+
+      if (state.mode === "waiting" && pointInRect(canvasPoint, uiBounds.tutorialAgain)) {
+        startTutorial();
+        return;
+      }
+
+      if (state.mode === "waiting" && !pointInRect(canvasPoint, uiBounds.deliveryStart)) {
+        return;
+      }
+
+      if (state.mode === "gameover") {
+        if (pointInRect(canvasPoint, uiBounds.resultRestart)) {
+          reset("waiting");
+        }
+        return;
+      }
+
+      if (state.mode === "ready") {
+        state.mode = "playing";
+        startJump();
+        return;
+      }
+
+      const tutorialStep = currentTutorialStep();
+
+      if (state.mode === "tutorialPlaying" && state.tutorialPaused && tutorialStep?.id === "briefing") {
+        advanceTutorialStep();
+        return;
+      }
+
+      if (state.mode === "tutorialPlaying" && state.tutorialPaused && (tutorialStep?.id === "assist" || tutorialStep?.id === "delivery" || tutorialStep?.id === "drone")) {
+        resumeTutorialStep();
+        return;
+      }
+
+      if (state.mode === "tutorialPlaying" && tutorialStep?.id === "jump") {
+        if (!state.tutorialJumpStarted) {
+          resumeTutorialStep();
+          startJump();
+          state.tutorialJumpStarted = true;
+        }
+        return;
+      }
+
+      if (state.mode === "waiting") {
+        state.mode = "ready";
+        state.status = "출발 대기";
+        updateHud();
+        return;
+      }
+
+      if (state.mode !== "playing" && state.mode !== "tutorialPlaying") return;
+      if (state.mode === "tutorialPlaying" && state.tutorialPaused) resumeTutorialStep();
+
+      const p = state.player;
+      const attach = playerWirePoint(p);
+      const best = findBestHookAnchor(pointer);
+
+      if (!best) {
+        state.status = "연결 거리 밖";
+        addEffect("no-anchor", p.x, p.y - 32, 0.7);
+        return;
+      }
+
+      const dx = attach.x - best.x;
+      const dy = attach.y - best.y;
+      const hookDistance = Math.hypot(dx, dy);
+      const ropeLength = Math.max(minRopeLength, hookDistance * 0.96);
+      state.hook = {
+        anchor: best,
+        length: ropeLength,
+        visualLength: Math.max(ropeLength + 44, hookDistance * 1.08),
+        elasticTime: 0,
+      };
+      state.hookHoldTime = 0;
+      state.pulseCooldownLeft = 0;
+      state.status = "Wired";
+      addEffect("hook", best.x, best.y, 0.34);
+      playSound("hook");
+      handleTutorialHookConnected(best);
+      if (event.pointerId !== undefined) canvas.setPointerCapture?.(event.pointerId);
+    }
+
+    function releaseWire(event) {
+      const wasHooked = Boolean(state.hook);
+      const tutorialStep = currentTutorialStep();
+      const releasedAnchor = state.hook?.anchor;
+      const goodTutorialJumpRelease = tutorialStep?.id === "hook" && isTutorialReleaseJumpMoment(releasedAnchor);
+      if (state.hook) {
+        state.hook = null;
+        state.hookHoldTime = 0;
+        state.status = "Released";
+        playSound("release");
+        if (state.mode === "tutorialPlaying" && wasHooked && tutorialSteps[state.tutorialStepIndex].id === "hook") {
+          if (goodTutorialJumpRelease) {
+            state.tutorialReleased = true;
+            state.tutorialReleasePromptCount += 1;
+            advanceTutorialStep();
+          } else {
+            if (releasedAnchor) releasedAnchor.tutorialUsed = false;
+          }
+        }
+      }
+      if (event.pointerId !== undefined) canvas.releasePointerCapture?.(event.pointerId);
+    }
+
+    function update(dt) {
+      state.screenFlash = Math.max(0, state.screenFlash - dt * 3.5);
+      state.shake = Math.max(0, state.shake - dt * 18);
+      state.pulseCooldownLeft = Math.max(0, state.pulseCooldownLeft - dt);
+      state.tutorialFeedbackTimer = Math.max(0, state.tutorialFeedbackTimer - dt);
+      if (state.notification) {
+        state.notification.time = Math.max(0, state.notification.time - dt);
+        if (state.notification.time === 0) state.notification = null;
+      }
+      updateEffects(dt);
+      if (state.mode === "dronePreview") return;
+      if (state.mode === "tutorialPlaying" && state.tutorialPaused) return;
+      if (state.mode === "tutorialPlaying") state.tutorialStepElapsed += dt;
+
+      if (state.mode === "waiting" || state.mode === "ready" || state.mode === "tutorialIntro" || state.mode === "tutorialComplete") return;
+      if (state.mode === "finishing") {
+        updateFinishing(dt);
+        updateParticles(dt);
+        return;
+      }
+      if (state.mode === "gameover") {
+        updateParticles(dt);
+        return;
+      }
+
+      const p = state.player;
+      p.vy += gravity * dt;
+      p.vx *= 0.998;
+      p.vy *= 0.999;
+      p.x += p.vx * dt;
+      p.y += p.vy * dt;
+
+      if (state.hook) {
+        state.hookHoldTime += dt;
+        state.hook.elasticTime = Math.min(hookElasticDuration, state.hook.elasticTime + dt);
+        applyRopeConstraint();
+      }
+      updateSpeed(dt);
+
+      if (!p.leftStartPad && (p.x > 210 || p.y < groundY - 28)) p.leftStartPad = true;
+      if (!p.leftStartPad && p.y + p.r > groundY) {
+        p.y = groundY - p.r;
+        p.vy = Math.min(0, p.vy);
+      }
+
+      if (p.x > state.maxX) {
+        state.maxX = p.x;
+      }
+
+      const desiredCamera = p.x - W * 0.34;
+      state.cameraX = Math.max(0, state.cameraX, desiredCamera);
+
+      if (state.mode === "tutorialPlaying") {
+        updateParticles(dt);
+        const tutorialStep = tutorialSteps[state.tutorialStepIndex].id;
+        if (tutorialStep === "jump" && state.tutorialJumpStarted && p.vy >= -20 && p.y < groundY - playerRadius - 32) {
+          advanceTutorialStep();
+          return;
+        }
+
+        if (tutorialStep === "assist") {
+          checkSprings();
+          if (state.hook && isTutorialBoostMoment()) {
+            advanceTutorialStep();
+            return;
+          }
+        }
+
+        if (tutorialStep === "boost" && state.tutorialBoostUsed) {
+          state.tutorialBoostFlightTime += dt;
+          if (state.tutorialBoostFlightTime >= tutorialBoostFlightDelay) {
+            advanceTutorialStep();
+            return;
+          }
+        }
+
+        if (tutorialStep === "drone") {
+          updateDrones(dt);
+          checkDrones();
+          if (state.mode !== "tutorialPlaying") return;
+          if (state.tutorialStepElapsed >= 0.55 && isTutorialDeliveryRingFullyVisible()) {
+            advanceTutorialStep();
+            return;
+          }
+        }
+
+        if (tutorialStep === "delivery") {
+          updateDrones(dt);
+          checkDrones();
+          if (state.mode !== "tutorialPlaying") return;
+          updateOrders(dt);
+          if (currentTutorialStep()?.id !== "delivery") return;
+        }
+        if (p.y > killY) {
+          retryTutorialStep();
+        }
+        return;
+      }
+
+      generateWorld(state.cameraX + W + 900);
+      trimWorld();
+      updateDrones(dt);
+      updateOrders(dt);
+      if (state.mode !== "playing") return;
+      checkGates();
+      checkSprings();
+      checkDrones();
+      updateParticles(dt);
+
+      if (p.y > killY) endGame("추락");
+    }
+
+    function applyRopeConstraint() {
+      const p = state.player;
+      const { anchor, length } = state.hook;
+      const attach = playerWirePoint(p);
+      const dx = attach.x - anchor.x;
+      const dy = attach.y - anchor.y;
+      const dist = Math.max(0.001, Math.hypot(dx, dy));
+
+      if (dist <= length) return;
+
+      const nx = dx / dist;
+      const ny = dy / dist;
+      const nextAttachX = anchor.x + nx * length;
+      const nextAttachY = anchor.y + ny * length;
+      p.x += nextAttachX - attach.x;
+      p.y += nextAttachY - attach.y;
+
+      const radialVelocity = p.vx * nx + p.vy * ny;
+      if (radialVelocity > 0) {
+        p.vx -= nx * radialVelocity;
+        p.vy -= ny * radialVelocity;
+      }
+    }
+
+    function currentHookVisualLength() {
+      if (!state.hook) return 0;
+      const t = Math.min(1, state.hook.elasticTime / hookElasticDuration);
+      const eased = 1 - Math.pow(1 - t, 3);
+      return state.hook.visualLength + (state.hook.length - state.hook.visualLength) * eased;
+    }
+
+    function pulseBoost() {
+      if ((state.mode !== "playing" && state.mode !== "tutorialPlaying") || !state.hook || state.pulseCharges <= 0 || state.pulseCooldownLeft > 0) return;
+      if (state.mode === "tutorialPlaying" && state.tutorialPaused) {
+        if (tutorialSteps[state.tutorialStepIndex].id !== "boost") return;
+        resumeTutorialStep();
+      }
+
+      const p = state.player;
+      const anchor = state.hook.anchor;
+      const attach = playerWirePoint(p);
+      const dx = attach.x - anchor.x;
+      const dy = attach.y - anchor.y;
+      const dist = Math.max(0.001, Math.hypot(dx, dy));
+      const nx = dx / dist;
+      const ny = dy / dist;
+      let tx = -ny;
+      let ty = nx;
+
+      if (p.vx * tx + p.vy * ty < 0) {
+        tx *= -1;
+        ty *= -1;
+      }
+
+      const downSwingBonus = Math.max(0.65, Math.min(1.25, 1 + p.vy / 1000));
+      p.vx += tx * pulseBoostPower * downSwingBonus;
+      p.vy += ty * pulseBoostPower * downSwingBonus;
+      state.pulseCharges -= 1;
+      state.pulseCooldownLeft = pulseCooldown;
+      state.status = "Pulse Boost";
+      playSound("boost");
+      state.screenFlash = 1;
+      state.shake = 7;
+      addBoostTrail();
+      burst(p.x, p.y, "#61e5e8", 12);
+      burst(p.x, p.y, "#ffd35a", 8);
+      if (state.mode === "tutorialPlaying" && tutorialSteps[state.tutorialStepIndex].id === "boost") {
+        state.tutorialBoostUsed = true;
+        state.tutorialBoostFlightTime = 0;
+        state.hook = null;
+        state.hookHoldTime = 0;
+        state.springs = [];
+        placeTutorialProgressAnchors();
+        p.vx = Math.max(p.vx, 360);
+      }
+    }
+
+    function trimWorld() {
+      const cutoff = state.cameraX - 300;
+      state.anchors = state.anchors.filter((item) => item.x > cutoff);
+      state.gates = state.gates.filter((item) => item.x > cutoff || !item.missed);
+      state.drones = state.drones.filter((item) => item.x > cutoff);
+      state.springs = state.springs.filter((item) => item.x > cutoff || !item.used);
+    }
+
+    function updateDrones(dt) {
+      for (const drone of state.drones) {
+        drone.x -= drone.speed * dt;
+        if (drone.type === "red") {
+          drone.phase += dt * 4.2;
+          drone.y = drone.baseY + Math.sin(drone.phase) * drone.amp;
+        }
+      }
+    }
+
+    function checkGates() {
+      const p = state.player;
+      for (const gate of state.gates) {
+        if (gate.passed) continue;
+        const nx = (p.x - gate.x) / gate.rx;
+        const ny = (p.y - gate.y) / gate.ry;
+        if (nx * nx + ny * ny < 1) {
+          gate.passed = true;
+          state.combo += 1;
+          state.pulseCharges = Math.min(maxPulseCharges, state.pulseCharges + 1);
+          state.status = "Boost Gate";
+          playSound("boostGate");
+          state.screenFlash = 1;
+          state.shake = 6;
+          burst(gate.x, gate.y, "#5de3ff", 18);
+        } else if (!gate.missed && p.x > gate.x + gate.rx + 60) {
+          gate.missed = true;
+          state.combo = 0;
+          state.status = "Gate missed";
+        }
+      }
+    }
+
+    function checkDrones() {
+      const p = state.player;
+      for (const drone of state.drones) {
+        const closestX = Math.max(drone.x - drone.w / 2, Math.min(p.x, drone.x + drone.w / 2));
+        const closestY = Math.max(drone.y - drone.h / 2, Math.min(p.y, drone.y + drone.h / 2));
+        if (Math.hypot(p.x - closestX, p.y - closestY) < p.r) {
+          if (state.mode === "tutorialPlaying" && (currentTutorialStep()?.id === "drone" || currentTutorialStep()?.id === "delivery")) {
+            state.status = "드론 충돌";
+            playSound("collision");
+            state.shake = 8;
+            burst(p.x, p.y, "#ff5c7a", 24);
+            retryTutorialStep();
+            return;
+          }
+          endGame("드론 충돌");
+          return;
+        }
+      }
+    }
+
+    function checkSprings() {
+      const p = state.player;
+      if (p.vy < 0) return;
+
+      for (const spring of state.springs) {
+        if (spring.used) continue;
+        const withinX = p.x > spring.x - spring.w / 2 - p.r && p.x < spring.x + spring.w / 2 + p.r;
+        const withinY = p.y + p.r > spring.y - 8 && p.y + p.r < spring.y + spring.h + 16;
+        if (withinX && withinY) {
+          spring.used = true;
+          p.vx = Math.max(p.vx, 300);
+          p.vy = -760;
+          state.status = "Spring Save";
+          playSound("spring");
+          state.shake = 7;
+          if (state.mode === "tutorialPlaying") state.tutorialSpringUsed = true;
+          burst(spring.x, spring.y, "#ffd166", 24);
+          return;
+        }
+      }
+    }
+
+    function burst(x, y, color, count) {
+      for (let i = 0; i < count; i++) {
+        state.particles.push({
+          x,
+          y,
+          vx: rand(-240, 240),
+          vy: rand(-220, 160),
+          life: rand(0.3, 0.7),
+          maxLife: 0.7,
+          color,
+        });
+      }
+    }
+
+    function addEffect(type, x, y, life = 0.35) {
+      state.effects.push({ type, x, y, life, maxLife: life });
+    }
+
+    function addBoostTrail() {
+      const p = state.player;
+      const speed = Math.max(1, Math.hypot(p.vx, p.vy));
+      const nx = p.vx / speed;
+      const ny = p.vy / speed;
+      for (let i = 0; i < 9; i++) {
+        state.effects.push({
+          type: "boost-trail",
+          x: p.x - nx * i * 16,
+          y: p.y - ny * i * 16 + rand(-7, 7),
+          vx: -nx,
+          vy: -ny,
+          life: 0.2 + i * 0.012,
+          maxLife: 0.31,
+        });
+      }
+    }
+
+    function updateEffects(dt) {
+      for (const effect of state.effects) effect.life -= dt;
+      state.effects = state.effects.filter((effect) => effect.life > 0);
+    }
+
+    function updateParticles(dt) {
+      for (const particle of state.particles) {
+        particle.life -= dt;
+        particle.vy += 500 * dt;
+        particle.x += particle.vx * dt;
+        particle.y += particle.vy * dt;
+      }
+      state.particles = state.particles.filter((particle) => particle.life > 0);
+    }
+
+    function endGame(reason) {
+      if (state.mode === "gameover") return;
+      if (state.mode === "tutorialPlaying") {
+        retryTutorialStep();
+        return;
+      }
+      for (const order of state.orders) {
+        if (order.status === "active" || order.status === "late" || order.status === "pending") {
+          order.status = "missed";
+          state.missedCount += 1;
+        }
+      }
+      state.mode = "gameover";
+      playSound("failure");
+      state.status = reason;
+      state.hook = null;
+      state.drones = [];
+      state.hookHoldTime = 0;
+      state.combo = 0;
+      persistRunRecords();
+      burst(state.player.x, state.player.y, "#ff5c7a", 24);
+      updateHud();
+    }
+
+    function updateHud() {
+      speedEl.textContent = `${Math.round(state.speedKmh)} km/h`;
+      distanceEl.textContent = `${currentDistance()}m`;
+      ratingValueEl.textContent = currentRating().toFixed(2);
+
+      const showGameplayHud = state.mode === "ready" || state.mode === "playing" || state.mode === "tutorialPlaying";
+      controlBarEl.hidden = !showGameplayHud;
+      orderManifestEl.hidden = !showGameplayHud;
+      boostHudEl.hidden = !showGameplayHud;
+
+      if (renderedRatingQuarters !== state.ratingQuarters) {
+        ratingSegmentsEl.innerHTML = Array.from(
+          { length: 5 },
+          (_, index) => {
+            const fill = Math.max(0, Math.min(4, state.ratingQuarters - index * 4)) * 25;
+            return `<i class="rating-star" style="--fill:${fill}%">★</i>`;
+          }
+        ).join("");
+        renderedRatingQuarters = state.ratingQuarters;
+      }
+
+      if (renderedPulseCharges !== state.pulseCharges) {
+        boostHudEl.innerHTML = `<span>부스터</span>${Array.from(
+          { length: maxPulseCharges },
+          (_, index) => `<i class="${index < state.pulseCharges ? "charged" : ""}"></i>`
+        ).join("")}`;
+        renderedPulseCharges = state.pulseCharges;
+      }
+
+      const order = activeOrder();
+      if (showGameplayHud && order) {
+        const remainingM = Math.max(0, order.distanceM - currentDistance());
+        const nextFoods = state.orders
+          .slice(state.activeOrderIndex + 1, state.activeOrderIndex + 3)
+          .map((item) => item.food)
+          .join(" · ") || "마지막 주문";
+        const progress = Math.max(0, Math.min(1, state.orderTimeLeft / orderTimeLimit));
+        orderManifestEl.innerHTML = `
+          <div class="manifest-kicker">ORDER ${state.activeOrderIndex + 1}/${state.orders.length}</div>
+          <div class="manifest-food">${order.food}</div>
+          <div class="manifest-meta"><span>남은 거리 ${remainingM}m</span><strong>${state.orderTimeLeft.toFixed(1)}s</strong></div>
+          <div class="manifest-track"><i style="transform:scaleX(${progress})"></i></div>
+          <div class="manifest-next">NEXT  ${nextFoods}</div>
+          <div class="manifest-stats"><span>성공</span><strong>${state.onTimeCount + state.lateCount}</strong></div>`;
+      } else {
+        orderManifestEl.innerHTML = "";
+      }
+
+      notificationEl.hidden = !state.notification;
+      notificationEl.textContent = state.notification?.message ?? "";
+      notificationEl.classList.remove("success", "delay", "failure");
+      if (state.notification) notificationEl.classList.add(state.notification.type);
+    }
+
+    function currentDistance() {
+      return Math.min(courseDistanceM, worldXToMeters(state.maxX));
+    }
+
+    function worldXToMeters(x) {
+      return Math.max(0, Math.floor((x - 170) / pixelsPerMeter));
+    }
+
+    function metersToWorldX(meters) {
+      return 170 + meters * pixelsPerMeter;
+    }
+
+    function updateSpeed(dt) {
+      const p = state.player;
+      const rawKmh = Math.hypot(p.vx, p.vy) / pixelsPerMeter * 3.6;
+      const realisticKmh = Math.min(160, rawKmh);
+      const blend = Math.min(1, dt * 7);
+      state.speedKmh += (realisticKmh - state.speedKmh) * blend;
+      state.maxSpeedKmh = Math.max(state.maxSpeedKmh, realisticKmh);
+      state.speedSumKmh += realisticKmh;
+      state.speedSamples += 1;
+    }
+
+    function avgSpeedKmh() {
+      if (state.speedSamples === 0) return 0;
+      return state.speedSumKmh / state.speedSamples;
+    }
+
+    function draw() {
+      if (previewMode === "drones") {
+        drawDronePreview();
+        return;
+      }
+      const shakeX = state.shake ? rand(-state.shake, state.shake) : 0;
+      const shakeY = state.shake ? rand(-state.shake, state.shake) : 0;
+      ctx.save();
+      ctx.translate(shakeX, shakeY);
+      ctx.clearRect(-20, -20, W + 40, H + 40);
+      drawSky();
+      drawCity();
+      drawStartPad();
+      drawFutureHome();
+      drawDeliveryRings();
+      drawGates("back");
+      drawDrones();
+      drawSprings();
+      drawAnchors();
+      drawEffects("behind");
+      drawWire();
+      drawPlayer();
+      drawFutureHomeFront();
+      drawGates("front");
+      drawParticles();
+      drawEffects("front");
+      drawTutorialBubble();
+      if (state.screenFlash > 0) {
+        ctx.fillStyle = `rgba(121, 244, 232, ${0.18 * state.screenFlash})`;
+        ctx.fillRect(0, 0, W, H);
+      }
+      ctx.restore();
+      drawOverlay();
+    }
+
+    function drawDronePreview() {
+      ctx.clearRect(0, 0, W, H);
+      drawSky();
+      drawCity();
+      ctx.fillStyle = "rgba(2, 7, 13, 0.28)";
+      ctx.fillRect(0, 0, W, H);
+
+      ctx.fillStyle = "#f4fbff";
+      ctx.textAlign = "center";
+      ctx.font = '900 28px "Apple SD Gothic Neo", "Malgun Gothic", Arial';
+      ctx.fillText("드론 미리보기", W / 2, 70);
+      ctx.fillStyle = "#8497a8";
+      ctx.font = '600 13px "Apple SD Gothic Neo", "Malgun Gothic", Arial';
+      ctx.fillText("실제 게임 크기와 이동 방식", W / 2, 94);
+
+      const time = performance.now();
+      const yellowX = W + 45 - (time * 0.11 % (W + 90));
+      const redX = W + 160 - (time * 0.15 % (W + 210));
+      const redY = 340 + Math.sin(time / 310) * 42;
+      const previewDrone = { w: droneBodyWidth, h: droneBodyHeight };
+
+      ctx.strokeStyle = "rgba(255, 211, 90, 0.13)";
+      ctx.setLineDash([5, 10]);
+      ctx.beginPath();
+      ctx.moveTo(80, 220);
+      ctx.lineTo(W - 70, 220);
+      ctx.stroke();
+
+      ctx.strokeStyle = "rgba(255, 95, 111, 0.13)";
+      ctx.beginPath();
+      for (let x = 80; x <= W - 70; x += 16) {
+        const y = 340 + Math.sin((x + time * 0.15) / 95) * 42;
+        if (x === 80) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      ctx.fillStyle = "#ffd35a";
+      ctx.textAlign = "left";
+      ctx.font = '800 12px "Apple SD Gothic Neo", "Malgun Gothic", Arial';
+      ctx.fillText("노란 드론 · 직선 이동", 40, 224);
+      ctx.fillStyle = "#ff7b88";
+      ctx.fillText("빨간 드론 · 상하 이동", 40, 344);
+
+      ctx.save();
+      ctx.translate(yellowX, 220);
+      ctx.shadowColor = "#ffd35a";
+      ctx.shadowBlur = 8;
+      drawYellowDrone(previewDrone);
+      ctx.restore();
+
+      ctx.save();
+      ctx.translate(redX, redY);
+      ctx.shadowColor = "#ff5f6f";
+      ctx.shadowBlur = 8;
+      drawRedDrone(previewDrone);
+      ctx.restore();
+
+      ctx.fillStyle = "rgba(5, 14, 24, 0.82)";
+      ctx.fillRect(W / 2 - 126, H - 76, 252, 34);
+      ctx.strokeStyle = "rgba(97, 229, 232, 0.28)";
+      ctx.strokeRect(W / 2 - 126, H - 76, 252, 34);
+      ctx.fillStyle = "#a9bac7";
+      ctx.textAlign = "center";
+      ctx.font = '700 11px "Apple SD Gothic Neo", "Malgun Gothic", Arial';
+      ctx.fillText("일반 게임: 주소에서 ?preview=drones 삭제", W / 2, H - 54);
+    }
+
+    function setupFinishPreview() {
+      reset("playing");
+      for (const order of state.orders) order.status = "delivered";
+      state.activeOrderIndex = state.orders.length;
+      state.ratingQuarters = 20;
+      state.onTimeCount = state.orders.length;
+      state.lateCount = 0;
+      state.missedCount = 0;
+      state.maxX = metersToWorldX(courseDistanceM);
+      state.player.x = metersToWorldX(courseDistanceM) - 120;
+      state.player.y = 205;
+      state.player.vx = 230;
+      state.player.vy = -30;
+      state.player.leftStartPad = true;
+      state.cameraX = Math.max(0, state.player.x - W * 0.55);
+      state.anchors = [];
+      state.gates = [];
+      state.drones = [];
+      state.springs = [];
+      beginFinishSequence();
+      updateHud();
+    }
+
+    function setupDronePreview() {
+      reset("waiting");
+      state.mode = "dronePreview";
+      updateHud();
+    }
+
+    function worldX(x) {
+      return x - state.cameraX;
+    }
+
+    function drawSky() {
+      const gradient = ctx.createLinearGradient(0, 0, 0, H);
+      gradient.addColorStop(0, "#07101c");
+      gradient.addColorStop(0.54, "#0b1723");
+      gradient.addColorStop(1, "#02060b");
+      ctx.fillStyle = gradient;
+      ctx.fillRect(0, 0, W, H);
+
+      const horizonGlow = ctx.createRadialGradient(W * 0.72, H * 0.58, 10, W * 0.72, H * 0.58, W * 0.6);
+      horizonGlow.addColorStop(0, "rgba(49, 124, 148, 0.13)");
+      horizonGlow.addColorStop(1, "rgba(2, 6, 11, 0)");
+      ctx.fillStyle = horizonGlow;
+      ctx.fillRect(0, 0, W, H);
+
+      ctx.fillStyle = "rgba(212, 239, 247, 0.5)";
+      for (let i = 0; i < 34; i++) {
+        const x = (i * 137 + 29) % W;
+        const y = 24 + ((i * 71) % Math.floor(H * 0.46));
+        const size = i % 7 === 0 ? 1.5 : 1;
+        ctx.fillRect(x, y, size, size);
+      }
+
+      const routeOffset = -((state.cameraX * 0.18) % 260);
+      ctx.strokeStyle = "rgba(97, 229, 232, 0.12)";
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([4, 16]);
+      for (let x = routeOffset - 260; x < W + 260; x += 260) {
+        ctx.beginPath();
+        ctx.moveTo(x, H * 0.36);
+        ctx.quadraticCurveTo(x + 110, H * 0.29, x + 220, H * 0.35);
+        ctx.stroke();
+      }
+      ctx.setLineDash([]);
+    }
+
+    function drawBuildingWindows(x, y, width, height, alpha, seed) {
+      const columns = Math.max(2, Math.floor(width / 22));
+      const rows = Math.max(2, Math.floor(height / 25));
+      for (let row = 0; row < rows; row++) {
+        for (let column = 0; column < columns; column++) {
+          if ((row * 5 + column * 3 + seed) % 4 === 0) continue;
+          const warm = (row + column + seed) % 5 === 0;
+          ctx.fillStyle = warm
+            ? `rgba(255, 211, 90, ${alpha})`
+            : `rgba(97, 229, 232, ${alpha * 0.7})`;
+          ctx.fillRect(x + 9 + column * 20, y + 13 + row * 24, 5, 8);
+        }
+      }
+    }
+
+    function drawCityLayer(speed, baseline, color, width, minHeight, heightRange, windowAlpha) {
+      const camera = state.cameraX * speed;
+      const first = Math.floor(camera / width) - 2;
+      const count = Math.ceil(W / width) + 5;
+      for (let i = first; i < first + count; i++) {
+        const world = i * width;
+        const sx = world - camera;
+        const seed = Math.abs((i * 73) % 97);
+        const buildingWidth = width * (0.62 + (seed % 23) / 100);
+        const height = minHeight + (seed / 97) * heightRange;
+        ctx.fillStyle = color;
+        ctx.fillRect(sx, baseline - height, buildingWidth, height + H - baseline);
+        drawBuildingWindows(sx, baseline - height, buildingWidth, height, windowAlpha, i);
+
+        if (seed % 3 === 0) {
+          ctx.fillStyle = "rgba(97, 229, 232, 0.22)";
+          ctx.fillRect(sx + buildingWidth * 0.16, baseline - height - 3, buildingWidth * 0.68, 2);
+        }
+      }
+    }
+
+    function drawCity() {
+      drawCityLayer(0.12, H * 0.79, "#0b1b28", 158, 86, 115, 0.08);
+      drawCityLayer(0.28, H * 0.86, "#081520", 126, 122, 170, 0.14);
+      drawCityLayer(0.48, H * 0.94, "#050c14", 106, 158, 210, 0.22);
+    }
+
+    function drawStartPad() {
+      const x = worldX(0);
+      ctx.fillStyle = "#172033";
+      ctx.fillRect(x, groundY, 270, 34);
+      ctx.fillStyle = "#5de3ff";
+      ctx.fillRect(x + 18, groundY - 5, 238, 5);
+      ctx.fillStyle = "#8fa1ba";
+      ctx.font = "12px Arial";
+      ctx.textAlign = "center";
+      ctx.fillText("START", x + 222, groundY + 23);
+    }
+
+    function drawAnchors() {
+      const bestHookAnchor = (state.mode === "playing" || state.mode === "tutorialPlaying") && !state.hook
+        ? findBestHookAnchor()
+        : null;
+      for (const anchor of state.anchors) {
+        const sx = worldX(anchor.x);
+        if (sx < -60 || sx > W + 60) continue;
+        const candidateState = hookAnchorCandidate(anchor);
+        candidateState.isBest = anchor === bestHookAnchor;
+
+        ctx.save();
+        ctx.translate(sx, anchor.y);
+        const hooked = state.hook?.anchor === anchor;
+        const pulseBase = candidateState.isBest ? 0.12 : 0.04;
+        const pulse = hooked || candidateState.isBest
+          ? 1 + Math.sin(performance.now() / 90) * pulseBase
+          : 1;
+        ctx.scale(pulse, pulse);
+
+        ctx.fillStyle = candidateState.eligible
+          ? "rgba(3, 11, 18, 0.9)"
+          : "rgba(3, 11, 18, 0.46)";
+        ctx.beginPath();
+        ctx.roundRect(-16, -13, 32, 26, 5);
+        ctx.fill();
+        ctx.strokeStyle = hooked
+          ? "#f4fbff"
+          : candidateState.isBest
+            ? "#fff7b0"
+            : candidateState.eligible
+              ? "#61e5e8"
+              : "rgba(97, 229, 232, 0.22)";
+        ctx.lineWidth = candidateState.isBest ? 3 : 2;
+        ctx.shadowColor = candidateState.isBest ? "rgba(255, 211, 90, 0.72)" : "transparent";
+        ctx.shadowBlur = candidateState.isBest ? 16 : 0;
+        ctx.stroke();
+
+        ctx.fillStyle = hooked
+          ? "#ffd35a"
+          : candidateState.isBest
+            ? "#fff7b0"
+            : candidateState.eligible
+              ? "#61e5e8"
+              : "rgba(97, 229, 232, 0.28)";
+        ctx.beginPath();
+        ctx.arc(0, 0, candidateState.isBest ? 7 : 5.5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.shadowBlur = 0;
+
+        ctx.strokeStyle = "rgba(97, 229, 232, 0.5)";
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(-8, -6);
+        ctx.lineTo(-4, -6);
+        ctx.moveTo(4, -6);
+        ctx.lineTo(8, -6);
+        ctx.moveTo(0, 13);
+        ctx.lineTo(0, 24);
+        ctx.stroke();
+
+        ctx.fillStyle = "rgba(97, 229, 232, 0.72)";
+        ctx.fillRect(-2, 24, 4, 5);
+        ctx.restore();
+      }
+    }
+
+    function drawPortalTunnel(rx, ry, color, phase, strength = 1) {
+      ctx.save();
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 1;
+      ctx.globalAlpha = 0.1 * strength;
+      for (let depth = 1; depth <= 4; depth++) {
+        const scale = 1 - depth * 0.13;
+        ctx.beginPath();
+        ctx.ellipse(-depth * 5, 0, rx * scale, ry * scale, 0, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+
+      ctx.globalAlpha = 0.25 * strength;
+      for (let index = 0; index < 14; index++) {
+        const angle = phase * 0.35 + index * Math.PI * 2 / 14;
+        const innerX = Math.cos(angle) * rx * 0.3 - 12;
+        const innerY = Math.sin(angle) * ry * 0.3;
+        const outerX = Math.cos(angle) * rx * 0.76;
+        const outerY = Math.sin(angle) * ry * 0.76;
+        ctx.beginPath();
+        ctx.moveTo(innerX, innerY);
+        ctx.lineTo(outerX, outerY);
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+
+    function drawPortalRings(rx, ry, color, paleColor, phase, strength = 1) {
+      ctx.save();
+      ctx.shadowColor = color;
+      ctx.shadowBlur = 16 * strength;
+      ctx.strokeStyle = color;
+      ctx.globalAlpha = 1;
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.ellipse(0, 0, rx, ry, 0, 0, Math.PI * 2);
+      ctx.stroke();
+
+      ctx.shadowBlur = 7 * strength;
+      ctx.strokeStyle = paleColor;
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.ellipse(0, 0, rx - 8, ry - 10, 0, 0, Math.PI * 2);
+      ctx.stroke();
+
+      ctx.shadowBlur = 0;
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 1.5;
+      ctx.lineCap = "round";
+      for (let index = 0; index < 9; index++) {
+        const start = phase + index * Math.PI * 2 / 9;
+        ctx.beginPath();
+        ctx.ellipse(0, 0, rx + 6, ry + 8, 0, start, start + 0.22);
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+
+    function drawDeliverySign(order) {
+      const width = Math.max(82, order.food.length * 18 + 42);
+      ctx.save();
+      ctx.fillStyle = "rgba(25, 8, 23, 0.94)";
+      ctx.strokeStyle = "#ff78b8";
+      ctx.lineWidth = 2;
+      ctx.shadowColor = "#ff4f9e";
+      ctx.shadowBlur = 13;
+      ctx.beginPath();
+      ctx.roundRect(-width / 2, -19, width, 38, 7);
+      ctx.fill();
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+      ctx.strokeStyle = "rgba(255, 205, 230, 0.72)";
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.roundRect(-width / 2 + 5, -14, width - 10, 28, 4);
+      ctx.stroke();
+
+      ctx.fillStyle = "#ffd8ea";
+      ctx.font = '900 16px "Apple SD Gothic Neo", "Malgun Gothic", Arial';
+      ctx.textAlign = "center";
+      ctx.fillText(order.food, 0, 6);
+      ctx.font = "11px Arial";
+      ctx.fillText("●", -width / 2 + 14, 4);
+      ctx.fillText("●", width / 2 - 14, 4);
+      ctx.restore();
+    }
+
+    function drawDeliveryRings() {
+      for (const order of state.orders) {
+        if (order.status !== "active" && order.status !== "late") continue;
+        const sx = worldX(order.x);
+        if (sx < -130 || sx > W + 130) continue;
+        const phase = performance.now() / 700;
+        const pulse = 1 + Math.sin(performance.now() / 170) * 0.025;
+        const color = order.status === "late" ? "#ff4f72" : "#ff5ca8";
+
+        ctx.save();
+        ctx.translate(sx, order.y);
+        ctx.scale(pulse, pulse);
+        ctx.fillStyle = "rgba(255, 56, 145, 0.055)";
+        ctx.beginPath();
+        ctx.ellipse(0, 0, order.rx, order.ry, 0, 0, Math.PI * 2);
+        ctx.fill();
+        drawPortalTunnel(order.rx, order.ry, color, phase, 0.75);
+        drawPortalRings(order.rx, order.ry, color, "#ffd1e5", -phase, 1);
+        drawDeliverySign(order);
+
+        ctx.fillStyle = "#ff79ba";
+        ctx.font = "800 10px Arial";
+        ctx.textAlign = "center";
+        ctx.fillText("•  FOOD DELIVERY  •", 0, order.ry + 27);
+        ctx.restore();
+      }
+    }
+
+    function drawBoostPortalSegments(gate, phase, alpha) {
+      ctx.save();
+      ctx.strokeStyle = `rgba(75, 238, 245, ${alpha})`;
+      ctx.lineWidth = 1.5;
+      ctx.lineCap = "round";
+      for (let index = 0; index < 9; index++) {
+        const start = phase + index * Math.PI * 2 / 9;
+        ctx.beginPath();
+        ctx.ellipse(0, 0, gate.rx + 6, gate.ry + 8, 0, start, start + 0.22);
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+
+    function drawGates(layer = "back") {
+      for (const gate of state.gates) {
+        const sx = worldX(gate.x);
+        if (sx < -110 || sx > W + 110) continue;
+        const active = !gate.passed;
+        const phase = performance.now() / 650;
+        const playerNear = Math.abs(state.player.x - gate.x) < gate.rx + state.player.r + 12;
+        const strength = active ? 1 : 0.25;
+
+        ctx.save();
+        ctx.translate(sx, gate.y);
+
+        if (layer === "back") {
+          ctx.fillStyle = `rgba(52, 226, 240, ${0.06 * strength})`;
+          ctx.beginPath();
+          ctx.ellipse(0, 0, gate.rx, gate.ry, 0, 0, Math.PI * 2);
+          ctx.fill();
+          drawPortalTunnel(gate.rx, gate.ry, "#39e7ef", phase, strength);
+          drawPortalRings(gate.rx, gate.ry, "#31dfe8", "#c7ffff", phase, strength);
+          drawBoostPortalSegments(gate, -phase, 0.85 * strength);
+
+          if (active) {
+            ctx.fillStyle = "#64edf2";
+            ctx.font = "800 10px Arial";
+            ctx.textAlign = "center";
+            ctx.fillText("•  BOOST  •", 0, gate.ry + 26);
+          }
+        } else {
+          ctx.strokeStyle = active ? "#c7ffff" : "rgba(93, 227, 255, 0.14)";
+          ctx.lineWidth = active ? (playerNear ? 5 : 3) : 1.5;
+          ctx.shadowColor = "#49edf3";
+          ctx.shadowBlur = active ? (playerNear ? 18 : 10) : 0;
+          ctx.beginPath();
+          ctx.ellipse(0, 0, gate.rx, gate.ry, 0, -Math.PI / 2, Math.PI / 2);
+          ctx.stroke();
+          ctx.shadowBlur = 0;
+        }
+        ctx.restore();
+      }
+    }
+
+    function drawArrivalStation(finish, sx, layer = "back") {
+      const top = groundY - 154;
+      const left = sx - 66;
+      const width = 132;
+      const doorwayWidth = 72;
+      const doorwayHeight = 88;
+      const doorwayLeft = sx - doorwayWidth / 2;
+      const doorwayTop = groundY - doorwayHeight;
+
+      ctx.save();
+      if (layer === "front") {
+        const panelWidth = doorwayWidth / 2 * (1 - finish.doorProgress);
+        ctx.fillStyle = "#102334";
+        ctx.strokeStyle = "#61e5e8";
+        ctx.lineWidth = 1.5;
+        ctx.shadowColor = "rgba(97, 229, 232, 0.45)";
+        ctx.shadowBlur = 8;
+        if (panelWidth > 0) {
+          ctx.fillRect(doorwayLeft, doorwayTop, panelWidth, doorwayHeight);
+          ctx.strokeRect(doorwayLeft, doorwayTop, panelWidth, doorwayHeight);
+          ctx.fillRect(doorwayLeft + doorwayWidth - panelWidth, doorwayTop, panelWidth, doorwayHeight);
+          ctx.strokeRect(doorwayLeft + doorwayWidth - panelWidth, doorwayTop, panelWidth, doorwayHeight);
+        }
+        ctx.restore();
+        return;
+      }
+
+      ctx.shadowColor = "rgba(97, 229, 232, 0.3)";
+      ctx.shadowBlur = 14;
+      ctx.fillStyle = "#0a1522";
+      ctx.strokeStyle = "rgba(97, 229, 232, 0.72)";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.roundRect(left, top, width, 154, 12);
+      ctx.fill();
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+
+      ctx.fillStyle = "#132536";
+      ctx.beginPath();
+      ctx.roundRect(left - 12, top + 14, width + 24, 18, 6);
+      ctx.fill();
+      ctx.strokeStyle = "#61e5e8";
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      ctx.fillStyle = "#ff6fb5";
+      ctx.beginPath();
+      ctx.arc(sx + 46, top + 23, 3, 0, Math.PI * 2);
+      ctx.fill();
+
+      const interiorGlow = ctx.createLinearGradient(sx, doorwayTop, sx, groundY);
+      interiorGlow.addColorStop(0, "rgba(255, 211, 90, 0.18)");
+      interiorGlow.addColorStop(1, "rgba(255, 211, 90, 0.55)");
+      ctx.fillStyle = interiorGlow;
+      ctx.fillRect(doorwayLeft, doorwayTop, doorwayWidth, doorwayHeight);
+      ctx.strokeStyle = "rgba(255, 220, 128, 0.78)";
+      ctx.lineWidth = 2;
+      ctx.strokeRect(doorwayLeft, doorwayTop, doorwayWidth, doorwayHeight);
+
+      ctx.fillStyle = "rgba(97, 229, 232, 0.75)";
+      ctx.fillRect(left + 14, top + 48, 22, 3);
+      ctx.fillRect(left + width - 36, top + 48, 22, 3);
+
+      ctx.fillStyle = "#08111b";
+      ctx.beginPath();
+      ctx.roundRect(left - 20, groundY - 8, width + 40, 12, 4);
+      ctx.fill();
+      ctx.strokeStyle = "rgba(97, 229, 232, 0.42)";
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    function drawFutureHome() {
+      if (!state.finishState) return;
+      const finish = state.finishState;
+      const sx = worldX(finish.homeX);
+      if (sx < -180 || sx > W + 180) return;
+      drawArrivalStation(finish, sx);
+    }
+
+    function drawFutureHomeFront() {
+      if (!state.finishState) return;
+      const finish = state.finishState;
+      const sx = worldX(finish.homeX);
+      if (sx < -180 || sx > W + 180) return;
+      drawArrivalStation(finish, sx, "front");
+    }
+
+    function drawYellowDrone(drone) {
+      const color = "#ffd35a";
+      const rotorTilt = Math.sin(performance.now() / 45) * 0.7;
+
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(-7, -5);
+      ctx.lineTo(-10, -11);
+      ctx.moveTo(7, -5);
+      ctx.lineTo(10, -11);
+      ctx.stroke();
+
+      ctx.save();
+      ctx.rotate(rotorTilt * 0.08);
+      for (const x of [-11, 11]) {
+        ctx.fillStyle = "rgba(3, 9, 15, 0.96)";
+        ctx.strokeStyle = color;
+        ctx.beginPath();
+        ctx.ellipse(x, -12, 6, 2.4, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.arc(x, -12, 1.5, 0, Math.PI * 2);
+        ctx.fillStyle = color;
+        ctx.fill();
+      }
+      ctx.restore();
+
+      ctx.fillStyle = "rgba(3, 9, 15, 0.96)";
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 1.7;
+      ctx.beginPath();
+      ctx.roundRect(-drone.w / 2, -drone.h / 2, drone.w, drone.h, 6);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.fillStyle = performance.now() % 360 < 180 ? color : "rgba(255,255,255,0.42)";
+      ctx.beginPath();
+      ctx.arc(-5, 0, 2.4, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = "#61e5e8";
+      ctx.beginPath();
+      ctx.arc(5, 0, 1.2, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    function drawRedDrone(drone) {
+      const color = "#ff5f6f";
+      const rotorPulse = 1 + Math.sin(performance.now() / 55) * 0.12;
+
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 1.5;
+      for (const x of [-16, 16]) {
+        ctx.fillStyle = "rgba(3, 9, 15, 0.96)";
+        ctx.beginPath();
+        ctx.ellipse(x, 0, 4 * rotorPulse, 7, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(x - 2, 0);
+        ctx.lineTo(x + 2, 0);
+        ctx.stroke();
+      }
+
+      ctx.fillStyle = "rgba(3, 9, 15, 0.96)";
+      ctx.beginPath();
+      ctx.ellipse(0, 0, drone.w / 2, drone.h / 2, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.moveTo(8, -4);
+      ctx.lineTo(14, -8);
+      ctx.lineTo(12, -2);
+      ctx.moveTo(8, 4);
+      ctx.lineTo(14, 8);
+      ctx.lineTo(12, 2);
+      ctx.stroke();
+
+      ctx.fillStyle = performance.now() % 300 < 150 ? color : "#ffb3ba";
+      ctx.beginPath();
+      ctx.arc(-5, 0, 2.5, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = "#61e5e8";
+      ctx.fillRect(1, -1, 5, 2);
+    }
+
+    function drawDrones() {
+      for (const drone of state.drones) {
+        const sx = worldX(drone.x);
+        if (sx < -80 || sx > W + 80) continue;
+
+        ctx.save();
+        ctx.translate(sx, drone.y);
+        ctx.shadowColor = drone.type === "red" ? "#ff5f6f" : "#ffd35a";
+        ctx.shadowBlur = 8;
+        drone.type === "red" ? drawRedDrone(drone) : drawYellowDrone(drone);
+        ctx.restore();
+
+      }
+    }
+
+    function drawSprings() {
+      for (const spring of state.springs) {
+        if (spring.used) continue;
+        const sx = worldX(spring.x);
+        if (sx < -80 || sx > W + 80) continue;
+        const pulse = 1 + Math.sin(performance.now() / 130) * 0.06;
+
+        drawNeonSpring(spring, sx, pulse);
+      }
+    }
+
+    function drawNeonSpring(spring, sx, pulse) {
+      const coilCount = 3;
+      const coilGap = 10;
+
+      ctx.save();
+      ctx.translate(sx, spring.y);
+
+      ctx.fillStyle = "rgba(3, 10, 17, 0.92)";
+      ctx.beginPath();
+      ctx.roundRect(-30, 42, 60, 9, 3);
+      ctx.fill();
+      ctx.strokeStyle = "rgba(97, 229, 232, 0.35)";
+      ctx.lineWidth = 1;
+      ctx.stroke();
+
+      ctx.strokeStyle = "#ffd35a";
+      ctx.lineWidth = 4;
+      ctx.shadowColor = "#ffd35a";
+      ctx.shadowBlur = 10;
+      for (let index = 0; index < coilCount; index++) {
+        const y = 14 + index * coilGap;
+        ctx.beginPath();
+        ctx.ellipse(0, y, 20, 6, 0, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+      ctx.shadowBlur = 0;
+
+      ctx.strokeStyle = "rgba(255, 211, 90, 0.85)";
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(-20, 14);
+      ctx.lineTo(-20, 34);
+      ctx.moveTo(20, 14);
+      ctx.lineTo(20, 34);
+      ctx.stroke();
+
+      ctx.scale(pulse, 1);
+      ctx.fillStyle = "rgba(97, 229, 232, 0.16)";
+      ctx.beginPath();
+      ctx.ellipse(0, 0, spring.w / 2 + 10, 14, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = "#07151d";
+      ctx.strokeStyle = "#61e5e8";
+      ctx.lineWidth = 4;
+      ctx.shadowColor = "#61e5e8";
+      ctx.shadowBlur = 14;
+      ctx.beginPath();
+      ctx.ellipse(0, 0, spring.w / 2, spring.h / 2, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.shadowBlur = 0;
+      ctx.fillStyle = "rgba(244, 251, 255, 0.75)";
+      ctx.beginPath();
+      ctx.ellipse(0, -2, spring.w / 2 - 10, 2, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+
+    function drawWire() {
+      if (!state.hook) return;
+      const p = state.player;
+      const anchor = state.hook.anchor;
+      const attach = playerWirePoint(p);
+      const startX = worldX(attach.x);
+      const startY = attach.y;
+      const endX = worldX(anchor.x);
+      const endY = anchor.y;
+      const straightLength = Math.max(1, Math.hypot(attach.x - anchor.x, attach.y - anchor.y));
+      const visualLength = currentHookVisualLength();
+      const stretch = Math.max(0, visualLength / straightLength - 1);
+      const bend = Math.min(34, stretch * 112);
+      const midX = (startX + endX) / 2;
+      const midY = (startY + endY) / 2;
+      const dx = endX - startX;
+      const dy = endY - startY;
+      const screenLength = Math.max(1, Math.hypot(dx, dy));
+      const controlX = midX - dy / screenLength * bend;
+      const controlY = midY + dx / screenLength * bend;
+
+      ctx.strokeStyle = stretch > 0.02 ? "#f4ffff" : "#d9ffff";
+      ctx.lineWidth = 3 + Math.min(2.5, stretch * 7);
+      ctx.shadowColor = stretch > 0.02 ? "rgba(255, 211, 90, 0.42)" : "rgba(97, 229, 232, 0.45)";
+      ctx.shadowBlur = 6 + Math.min(12, stretch * 30);
+      ctx.beginPath();
+      ctx.moveTo(startX, startY);
+      if (bend > 1) {
+        ctx.quadraticCurveTo(controlX, controlY, endX, endY);
+      } else {
+        ctx.lineTo(endX, endY);
+      }
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+    }
+
+    function drawPlayer() {
+      const p = state.player;
+      const sx = worldX(p.x);
+      const finish = state.finishState;
+      if (finish?.characterEntered) return;
+
+      ctx.fillStyle = "#f6f8ff";
+      ctx.beginPath();
+      ctx.ellipse(sx, p.y, 19, 14, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = "#61e5e8";
+      ctx.beginPath();
+      ctx.roundRect(sx - 12, p.y - 7, 24, 10, 5);
+      ctx.fill();
+
+      ctx.fillStyle = "#f6f8ff";
+      ctx.beginPath();
+      ctx.arc(sx - 21, p.y + 1, 6, 0, Math.PI * 2);
+      ctx.arc(sx + 21, p.y + 1, 6, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = "#f6f8ff";
+      ctx.beginPath();
+      ctx.ellipse(sx - 10, p.y + 16, 8, 4.5, 0, 0, Math.PI * 2);
+      ctx.ellipse(sx + 10, p.y + 16, 8, 4.5, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    function drawEffects(layer) {
+      for (const effect of state.effects) {
+        const alpha = Math.max(0, effect.life / effect.maxLife);
+        const sx = worldX(effect.x);
+
+        if (effect.type === "hook" && layer === "behind") {
+          const radius = 9 + (1 - alpha) * 30;
+          ctx.strokeStyle = `rgba(97, 229, 232, ${alpha * 0.8})`;
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.arc(sx, effect.y, radius, 0, Math.PI * 2);
+          ctx.stroke();
+        }
+
+        if (effect.type === "boost-trail" && layer === "behind") {
+          ctx.strokeStyle = `rgba(255, 211, 90, ${alpha * 0.7})`;
+          ctx.lineWidth = 2 + alpha * 2;
+          ctx.beginPath();
+          ctx.moveTo(sx, effect.y);
+          ctx.lineTo(sx + effect.vx * 44, effect.y + effect.vy * 44);
+          ctx.stroke();
+        }
+
+        if (effect.type === "no-anchor" && layer === "front") {
+          ctx.fillStyle = `rgba(255, 211, 90, ${alpha})`;
+          ctx.font = '800 13px "Apple SD Gothic Neo", "Malgun Gothic", Arial';
+          ctx.textAlign = "center";
+          ctx.fillText("연결 거리 밖", sx, effect.y - (1 - alpha) * 12);
+        }
+      }
+    }
+
+    function drawParticles() {
+      for (const particle of state.particles) {
+        const alpha = Math.max(0, particle.life / particle.maxLife);
+        ctx.globalAlpha = alpha;
+        ctx.fillStyle = particle.color;
+        ctx.fillRect(worldX(particle.x), particle.y, 5, 5);
+      }
+      ctx.globalAlpha = 1;
+    }
+
+    function drawStatus() {
+      if (state.mode === "tutorialPlaying") {
+        state.status = tutorialSteps[state.tutorialStepIndex].label;
+      }
+      ctx.fillStyle = "#ffffff";
+      ctx.textAlign = "left";
+      ctx.font = "700 18px Arial";
+      ctx.fillText(state.status, 22, 34);
+      if (state.hook) {
+        ctx.fillStyle = state.pulseCharges > 0 ? "#5de3ff" : "#6d7b91";
+        ctx.font = "700 14px Arial";
+        ctx.fillText(`Pulse Boost: ${state.pulseCharges}`, 22, 58);
+      }
+    }
+
+    function drawPanel(rect, fill = "rgba(5, 14, 24, 0.92)", stroke = "rgba(97, 229, 232, 0.34)") {
+      ctx.fillStyle = fill;
+      ctx.beginPath();
+      ctx.roundRect(rect.x, rect.y, rect.w, rect.h, 6);
+      ctx.fill();
+      ctx.strokeStyle = stroke;
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+    }
+
+    function drawCanvasButton(rect, label, fill = "#61e5e8", text = "#031016") {
+      ctx.save();
+      ctx.shadowColor = fill === "#61e5e8" ? "rgba(97, 229, 232, 0.32)" : "transparent";
+      ctx.shadowBlur = 18;
+      ctx.fillStyle = fill;
+      ctx.beginPath();
+      ctx.roundRect(rect.x, rect.y, rect.w, rect.h, 6);
+      ctx.fill();
+      ctx.shadowBlur = 0;
+      ctx.strokeStyle = fill === "#61e5e8" ? "rgba(228, 255, 255, 0.7)" : "rgba(255,255,255,0.22)";
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      ctx.fillStyle = text;
+      ctx.textAlign = "center";
+      ctx.font = '800 15px "Apple SD Gothic Neo", "Malgun Gothic", Arial';
+      ctx.fillText(label, rect.x + rect.w / 2, rect.y + rect.h / 2 + 5);
+      ctx.restore();
+    }
+
+    function drawDispatchButton(rect, label, primary = true) {
+      ctx.save();
+      if (primary) {
+        const fill = ctx.createLinearGradient(rect.x, rect.y, rect.x + rect.w, rect.y);
+        fill.addColorStop(0, "#64f0ec");
+        fill.addColorStop(1, "#4bb9ff");
+        ctx.shadowColor = "rgba(78, 224, 255, 0.42)";
+        ctx.shadowBlur = 22;
+        ctx.fillStyle = fill;
+      } else {
+        ctx.fillStyle = "rgba(4, 13, 22, 0.74)";
+      }
+      ctx.beginPath();
+      ctx.roundRect(rect.x, rect.y, rect.w, rect.h, 5);
+      ctx.fill();
+      ctx.shadowBlur = 0;
+      ctx.strokeStyle = primary ? "rgba(231, 255, 255, 0.78)" : "rgba(132, 151, 168, 0.42)";
+      ctx.lineWidth = 1;
+      ctx.stroke();
+
+      ctx.fillStyle = primary ? "#031016" : "#dceaf2";
+      ctx.textAlign = "left";
+      ctx.font = primary
+        ? '800 16px "Apple SD Gothic Neo", "Malgun Gothic", Arial'
+        : '700 13px "Apple SD Gothic Neo", "Malgun Gothic", Arial';
+      ctx.fillText(label, rect.x + 20, rect.y + rect.h / 2 + (primary ? 6 : 5));
+
+      if (primary) {
+        const arrowX = rect.x + rect.w - 25;
+        const arrowY = rect.y + rect.h / 2;
+        ctx.strokeStyle = "#031016";
+        ctx.lineWidth = 2;
+        ctx.lineCap = "round";
+        ctx.beginPath();
+        ctx.moveTo(arrowX - 8, arrowY);
+        ctx.lineTo(arrowX + 3, arrowY);
+        ctx.moveTo(arrowX - 1, arrowY - 5);
+        ctx.lineTo(arrowX + 4, arrowY);
+        ctx.lineTo(arrowX - 1, arrowY + 5);
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+
+    function drawRouteReceipt() {
+      const receipt = { x: 58, y: 190, w: 260, h: 112 };
+      ctx.save();
+      ctx.fillStyle = "rgba(7, 18, 28, 0.9)";
+      ctx.strokeStyle = "rgba(97, 229, 232, 0.42)";
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.roundRect(receipt.x, receipt.y, receipt.w, receipt.h, 4);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.fillStyle = "#75dfe8";
+      ctx.textAlign = "left";
+      ctx.font = '800 10px "Apple SD Gothic Neo", "Malgun Gothic", Arial';
+      ctx.fillText("배달 주문서", receipt.x + 16, receipt.y + 20);
+
+      ctx.strokeStyle = "rgba(132, 151, 168, 0.36)";
+      ctx.setLineDash([3, 4]);
+      ctx.beginPath();
+      ctx.moveTo(receipt.x + 16, receipt.y + 33);
+      ctx.lineTo(receipt.x + receipt.w - 16, receipt.y + 33);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      ctx.font = '700 12px "Apple SD Gothic Neo", "Malgun Gothic", Arial';
+      ctx.fillStyle = "#8497a8";
+      ctx.textAlign = "left";
+      ctx.fillText("주문 수량", receipt.x + 16, receipt.y + 57);
+      ctx.fillText("제한 시간", receipt.x + 16, receipt.y + 80);
+      ctx.fillStyle = "#f2f8fb";
+      ctx.textAlign = "right";
+      ctx.font = '800 14px "Apple SD Gothic Neo", "Malgun Gothic", Arial';
+      ctx.fillText("10건", receipt.x + receipt.w - 16, receipt.y + 57);
+      ctx.fillText("주문당 15초", receipt.x + receipt.w - 16, receipt.y + 80);
+
+      ctx.fillStyle = "rgba(97, 229, 232, 0.12)";
+      ctx.fillRect(receipt.x + 16, receipt.y + 94, receipt.w - 32, 2);
+      ctx.restore();
+    }
+
+    function drawDispatchStartScreen(primaryLabel, secondaryLabel, firstRun = false) {
+      const shade = ctx.createLinearGradient(0, 0, W, 0);
+      shade.addColorStop(0, "rgba(1, 6, 12, 0.82)");
+      shade.addColorStop(0.43, "rgba(1, 6, 12, 0.28)");
+      shade.addColorStop(0.78, "rgba(1, 6, 12, 0.06)");
+      shade.addColorStop(1, "rgba(1, 6, 12, 0.36)");
+      ctx.fillStyle = shade;
+      ctx.fillRect(0, 0, W, H);
+
+      const pulse = 0.6 + Math.sin(performance.now() * 0.003) * 0.22;
+      ctx.fillStyle = `rgba(97, 229, 232, ${pulse})`;
+      ctx.fillRect(58, 77, 42, 2);
+
+      ctx.fillStyle = "#75dfe8";
+      ctx.textAlign = "left";
+      ctx.font = '800 11px "Apple SD Gothic Neo", "Malgun Gothic", Arial';
+      ctx.fillText("NEON DELIVERY", 58, 65);
+
+      ctx.fillStyle = "#f7fbff";
+      ctx.font = '900 48px "Apple SD Gothic Neo", "Malgun Gothic", Arial';
+      ctx.fillText("네온 배달부", 56, 134);
+
+      ctx.fillStyle = "#a9bac7";
+      ctx.font = '600 16px "Apple SD Gothic Neo", "Malgun Gothic", Arial';
+      ctx.fillText("베스트 딜리버리에 도전하세요!", 59, 165);
+
+      drawRouteReceipt();
+
+      ctx.fillStyle = "#62e5e8";
+      ctx.beginPath();
+      ctx.arc(W - 280, H - 147, 3, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#a9bac7";
+      ctx.font = '700 11px "Apple SD Gothic Neo", "Malgun Gothic", Arial';
+      ctx.fillText(firstRun ? "첫 운행 훈련이 준비되었습니다" : "출동 준비 완료", W - 268, H - 143);
+
+      const primaryRect = firstRun ? uiBounds.tutorialStart : uiBounds.deliveryStart;
+      const secondaryRect = firstRun ? uiBounds.tutorialSkip : uiBounds.tutorialAgain;
+      drawDispatchButton(primaryRect, primaryLabel, true);
+      drawDispatchButton(secondaryRect, secondaryLabel, false);
+    }
+
+    function drawTutorialBubble() {
+      if (state.mode !== "tutorialPlaying") return;
+      const step = tutorialSteps[state.tutorialStepIndex];
+      if (step.id === "briefing") {
+        drawTutorialBriefing(step);
+        return;
+      }
+      const p = state.player;
+      const sx = worldX(p.x);
+      const bubbleW = 330;
+      const bubbleH = 128;
+      let x = Math.min(W - bubbleW - 24, Math.max(24, sx - 60));
+      let y = Math.max(88, p.y - 168);
+      if (y + bubbleH > H - 38) y = H - bubbleH - 38;
+      const panel = { x, y, w: bubbleW, h: bubbleH };
+      drawPanel(panel, "rgba(5, 14, 24, 0.95)", "rgba(255, 211, 90, 0.62)");
+
+      ctx.fillStyle = "rgba(255, 211, 90, 0.14)";
+      ctx.fillRect(x, y, 5, bubbleH);
+
+      ctx.fillStyle = "#ffd166";
+      ctx.font = '800 11px "Apple SD Gothic Neo", "Malgun Gothic", Arial';
+      ctx.textAlign = "left";
+      ctx.fillText(`DELIVERY TRAINING  ·  ${state.tutorialStepIndex + 1}/${tutorialSteps.length}`, x + 18, y + 24);
+
+      ctx.fillStyle = "#f4fbff";
+      ctx.font = '700 15px "Apple SD Gothic Neo", "Malgun Gothic", Arial';
+      wrapText(step.message, x + 18, y + 50, bubbleW - 36, 20);
+
+      if (state.tutorialPaused && step.hint) {
+        ctx.fillStyle = "#61e5e8";
+        ctx.font = '800 12px "Apple SD Gothic Neo", "Malgun Gothic", Arial';
+        const hintText = step.id === "assist" ? step.hint : `준비되면  ${step.hint}`;
+        ctx.fillText(hintText, x + 18, y + bubbleH - 16);
+      }
+
+      if (step.id === "assist") {
+        drawTutorialAssistCallouts();
+      }
+
+    }
+
+    function drawTutorialBriefing(step) {
+      ctx.fillStyle = "rgba(1, 5, 10, 0.22)";
+      ctx.fillRect(0, 0, W, H);
+
+      const panel = { x: W / 2 - 255, y: H - 126, w: 510, h: 94 };
+      drawPanel(panel, "rgba(5, 14, 24, 0.94)", "rgba(255, 211, 90, 0.58)");
+      ctx.fillStyle = "#ffd166";
+      ctx.font = '800 11px "Apple SD Gothic Neo", "Malgun Gothic", Arial';
+      ctx.textAlign = "left";
+      ctx.fillText(`DELIVERY TRAINING  ·  ${state.tutorialStepIndex + 1}/${tutorialSteps.length}`, panel.x + 18, panel.y + 24);
+      ctx.fillStyle = "#f4fbff";
+      ctx.font = '700 15px "Apple SD Gothic Neo", "Malgun Gothic", Arial';
+      wrapText(step.message, panel.x + 18, panel.y + 50, panel.w - 36, 20);
+      ctx.fillStyle = "#61e5e8";
+      ctx.font = '800 12px "Apple SD Gothic Neo", "Malgun Gothic", Arial';
+      ctx.fillText(`준비되면  ${step.hint}`, panel.x + 18, panel.y + panel.h - 14);
+
+      drawBriefingCallout(808, 38, 700, 54, "거리와 속도", "상단 HUD에서 거리와 속도를 봅니다.");
+      drawBriefingCallout(500, 38, 548, 126, "별점", "제한 시간내에 배달하면 별점을 더 받습니다.");
+      drawBriefingCallout(126, 156, 296, 124, "주문과 남은 시간", "왼쪽 주문표는 음식, 남은 거리, 제한 시간을 보여줍니다.");
+      drawBriefingCallout(78, H - 28, 282, 336, "부스터 잔량", "왼쪽 아래 칸 수가 남은 부스트 횟수입니다.");
+    }
+
+    function drawBriefingCallout(targetX, targetY, boxX, boxY, title, body) {
+      const box = { x: boxX, y: boxY, w: 236, h: 64 };
+      const anchorX = targetX < box.x ? box.x : box.x + box.w;
+      const anchorY = Math.max(box.y + 14, Math.min(box.y + box.h - 14, targetY));
+      ctx.strokeStyle = "rgba(255, 211, 90, 0.56)";
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(targetX, targetY);
+      ctx.lineTo(anchorX, anchorY);
+      ctx.stroke();
+      ctx.fillStyle = "rgba(255, 211, 90, 0.22)";
+      ctx.beginPath();
+      ctx.arc(targetX, targetY, 9, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#ffd166";
+      ctx.beginPath();
+      ctx.arc(targetX, targetY, 3.5, 0, Math.PI * 2);
+      ctx.fill();
+      drawPanel(box, "rgba(4, 11, 19, 0.92)", "rgba(255, 211, 90, 0.42)");
+      ctx.fillStyle = "#ffd166";
+      ctx.font = '800 11px "Apple SD Gothic Neo", "Malgun Gothic", Arial';
+      ctx.textAlign = "left";
+      ctx.fillText(title, box.x + 12, box.y + 19);
+      ctx.fillStyle = "#dceaf2";
+      ctx.font = '700 11px "Apple SD Gothic Neo", "Malgun Gothic", Arial';
+      wrapText(body, box.x + 12, box.y + 38, box.w - 24, 14);
+    }
+
+    function drawTutorialAssistCallouts() {
+      const spring = state.springs.find((item) => !item.used) ?? state.springs[0];
+      if (!spring) return;
+      const targetX = worldX(spring.x);
+      if (targetX < -40 || targetX > W + 40) return;
+      const boxX = Math.max(24, Math.min(W - 260, targetX - 88));
+      const boxY = Math.max(88, spring.y - 132);
+      drawBriefingCallout(
+        targetX,
+        spring.y,
+        boxX,
+        boxY,
+        "스프링",
+        "추락했을 때 랜덤하게 배치된 스프링이 배달원을 도와줍니다."
+      );
+    }
+
+    function wrapText(text, x, y, maxWidth, lineHeight) {
+      const words = text.split(" ");
+      let line = "";
+      for (const word of words) {
+        const test = line ? `${line} ${word}` : word;
+        if (ctx.measureText(test).width > maxWidth && line) {
+          ctx.fillText(line, x, y);
+          line = word;
+          y += lineHeight;
+        } else {
+          line = test;
+        }
+      }
+      if (line) ctx.fillText(line, x, y);
+    }
+
+    function traceStarPath(x, y, outerRadius, innerRadius = outerRadius * 0.46) {
+      ctx.beginPath();
+      for (let point = 0; point < 10; point++) {
+        const radius = point % 2 === 0 ? outerRadius : innerRadius;
+        const angle = -Math.PI / 2 + point * Math.PI / 5;
+        const px = x + Math.cos(angle) * radius;
+        const py = y + Math.sin(angle) * radius;
+        if (point === 0) ctx.moveTo(px, py);
+        else ctx.lineTo(px, py);
+      }
+      ctx.closePath();
+    }
+
+    function drawRatingStars(rating, centerX, centerY, radius = 20, gap = 9) {
+      const totalWidth = radius * 2 * 5 + gap * 4;
+      const startX = centerX - totalWidth / 2 + radius;
+
+      for (let index = 0; index < 5; index++) {
+        const x = startX + index * (radius * 2 + gap);
+        const fill = Math.max(0, Math.min(1, rating - index));
+        ctx.save();
+        traceStarPath(x, centerY, radius);
+        ctx.fillStyle = "rgba(255, 211, 90, 0.08)";
+        ctx.fill();
+        ctx.strokeStyle = "rgba(255, 211, 90, 0.6)";
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+
+        if (fill > 0) {
+          traceStarPath(x, centerY, radius);
+          ctx.clip();
+          ctx.fillStyle = "#ffd35a";
+          ctx.shadowColor = "#ffd35a";
+          ctx.shadowBlur = 10;
+          ctx.fillRect(x - radius, centerY - radius, radius * 2 * fill, radius * 2);
+        }
+        ctx.restore();
+      }
+    }
+
+    function drawOverlay() {
+      if (state.mode === "tutorialIntro") {
+        drawDispatchStartScreen("튜토리얼 시작", "건너뛰기", true);
+        return;
+      }
+
+      if (state.mode === "tutorialComplete") {
+        ctx.fillStyle = "rgba(1, 5, 10, 0.6)";
+        ctx.fillRect(0, 0, W, H);
+        ctx.fillStyle = "#61e5e8";
+        ctx.fillRect(W / 2 - 32, H / 2 - 106, 64, 3);
+        ctx.fillStyle = "#ffffff";
+        ctx.textAlign = "center";
+        ctx.font = '800 38px "Apple SD Gothic Neo", "Malgun Gothic", Arial';
+        ctx.fillText("연습 완료", W / 2, H / 2 - 66);
+        ctx.fillStyle = "#a9bac7";
+        ctx.font = '15px "Apple SD Gothic Neo", "Malgun Gothic", Arial';
+        ctx.fillText("실전 배송 준비가 완료되었습니다", W / 2, H / 2 - 28);
+        drawCanvasButton(uiBounds.realStart, "배달 시작");
+        return;
+      }
+
+      if (state.mode === "waiting") {
+        drawDispatchStartScreen("배달 시작", "튜토리얼", false);
+        return;
+      }
+
+      if (state.mode === "ready") {
+        drawPanel(
+          { x: W / 2 - 168, y: H / 2 - 54, w: 336, h: 108 },
+          "rgba(5, 14, 24, 0.9)",
+          "rgba(255, 211, 90, 0.52)"
+        );
+        ctx.fillStyle = "#ffd166";
+        ctx.textAlign = "center";
+        ctx.font = '800 12px "Apple SD Gothic Neo", "Malgun Gothic", Arial';
+        ctx.fillText("DELIVERY READY", W / 2, H / 2 - 20);
+        ctx.fillStyle = "#f4fbff";
+        ctx.font = '900 24px "Apple SD Gothic Neo", "Malgun Gothic", Arial';
+        ctx.fillText("클릭으로 점프", W / 2, H / 2 + 12);
+        ctx.fillStyle = "#8fa1ba";
+        ctx.font = '700 12px "Apple SD Gothic Neo", "Malgun Gothic", Arial';
+        ctx.fillText("와이어는 클릭 유지, 부스터는 연결 중 스페이스바", W / 2, H / 2 + 38);
+        return;
+      }
+
+      if (state.mode === "gameover") {
+        ctx.fillStyle = "rgba(0, 3, 8, 0.68)";
+        ctx.fillRect(0, 0, W, H);
+        const receipt = { x: W / 2 - 205, y: 43, w: 410, h: 474 };
+        drawPanel(receipt, "rgba(4, 11, 19, 0.96)", "rgba(97, 229, 232, 0.36)");
+
+        const completed = state.runCompleted && state.status === "배달 완료";
+        ctx.fillStyle = completed ? "#61e5e8" : "#ff5f6f";
+        ctx.fillRect(receipt.x, receipt.y, receipt.w, 4);
+        ctx.fillStyle = "#8497a8";
+        ctx.textAlign = "center";
+        ctx.font = '800 11px "Apple SD Gothic Neo", "Malgun Gothic", Arial';
+        ctx.fillText("DELIVERY RECEIPT", W / 2, 73);
+        ctx.fillStyle = "#f4fbff";
+        ctx.font = '800 31px "Apple SD Gothic Neo", "Malgun Gothic", Arial';
+        ctx.fillText(completed ? "배달 완료" : "배달 실패", W / 2, 111);
+
+        ctx.strokeStyle = "rgba(132, 151, 168, 0.24)";
+        ctx.beginPath();
+        ctx.moveTo(receipt.x + 28, 132);
+        ctx.lineTo(receipt.x + receipt.w - 28, 132);
+        ctx.stroke();
+
+        ctx.font = '14px "Apple SD Gothic Neo", "Malgun Gothic", Arial';
+        drawResultLine("종료 사유", state.status, 158);
+        drawResultLine("배달 거리", `${currentDistance()}m`, 187);
+        drawResultLine("정시 배달", `${state.onTimeCount}건`, 222);
+        drawResultLine("지연 배달", `${state.lateCount}건`, 252);
+        drawResultLine("실패 주문", `${state.missedCount}건`, 282);
+
+        ctx.fillStyle = "#8497a8";
+        ctx.textAlign = "center";
+        ctx.font = '800 11px "Apple SD Gothic Neo", "Malgun Gothic", Arial';
+        ctx.fillText("평점", W / 2, 310);
+        drawRatingStars(currentRating(), W / 2, 334, 18, 8);
+        ctx.fillStyle = "#b7c5d1";
+        ctx.font = '700 11px "Apple SD Gothic Neo", "Malgun Gothic", Arial';
+        ctx.fillText(`${currentRating().toFixed(2)} / 5.00`, W / 2, 360);
+
+        ctx.strokeStyle = "rgba(132, 151, 168, 0.24)";
+        ctx.beginPath();
+        ctx.moveTo(receipt.x + 28, 375);
+        ctx.lineTo(receipt.x + receipt.w - 28, 375);
+        ctx.stroke();
+
+        ctx.font = '14px "Apple SD Gothic Neo", "Malgun Gothic", Arial';
+        drawResultLine("최고 평점", `${state.bestRating.toFixed(2)} / 5.00`, 402);
+        drawResultLine("최고 거리", `${Math.floor(state.bestDistance)}m`, 428);
+        drawCanvasButton(uiBounds.resultRestart, "다시 배달");
+        ctx.fillStyle = "#8497a8";
+        ctx.textAlign = "center";
+        ctx.font = '12px "Apple SD Gothic Neo", "Malgun Gothic", Arial';
+        ctx.fillText("R 키로 빠른 재도전", W / 2, 505);
+      }
+    }
+
+    function drawResultLine(label, value, y) {
+      ctx.fillStyle = "#8497a8";
+      ctx.textAlign = "left";
+      ctx.fillText(label, W / 2 - 145, y);
+      ctx.fillStyle = "#f4fbff";
+      ctx.textAlign = "right";
+      ctx.font = '800 18px "Apple SD Gothic Neo", "Malgun Gothic", Arial';
+      ctx.fillText(value, W / 2 + 145, y);
+      ctx.font = '15px "Apple SD Gothic Neo", "Malgun Gothic", Arial';
+    }
+
+    let last = performance.now();
+    function frame(now) {
+      const dt = Math.min(0.033, (now - last) / 1000);
+      last = now;
+      update(dt);
+      draw();
+      updateHud();
+      requestAnimationFrame(frame);
+    }
+
+    canvas.addEventListener("pointerdown", startOrHook);
+    canvas.addEventListener("pointermove", rememberPointer);
+    canvas.addEventListener("pointerup", releaseWire);
+    canvas.addEventListener("pointercancel", releaseWire);
+    window.addEventListener("keydown", (event) => {
+      if (event.code === "Space") {
+        event.preventDefault();
+        if (state.hook) pulseBoost();
+      }
+      if (event.code === "KeyR") {
+        event.preventDefault();
+        quickRestart();
+      }
+    });
+    soundToggleEl.addEventListener("click", () => {
+      soundMuted = !soundMuted;
+      soundToggleEl.textContent = soundMuted ? "×" : "♪";
+      soundToggleEl.setAttribute("aria-label", soundMuted ? "소리 켜기" : "소리 끄기");
+      if (!soundMuted) {
+        ensureAudio();
+        startBgm();
+        playTone(660, 0.08, "sine", 0.04);
+      }
+    });
+
+    reset();
+    if (previewMode === "drones") setupDronePreview();
+    if (previewMode === "finish") setupFinishPreview();
+    requestAnimationFrame(frame);
+  </script>
+</body>
+</html>
+
+
+
+
+
